@@ -3,7 +3,7 @@ name: Build and Deploy RAG (Dev)
 on:
   push:
     branches:
-      - develop
+      - main
 
 jobs:
   build-and-deploy:
