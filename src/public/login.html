@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — DocMind</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #06060e;
+      --bg-secondary: #0c0c1d;
+      --bg-tertiary: #111128;
+      --bg-card: rgba(255, 255, 255, 0.025);
+      --bg-card-hover: rgba(255, 255, 255, 0.045);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(255, 255, 255, 0.12);
+      --text-primary: #e8eaf0;
+      --text-secondary: #9ba1b0;
+      --text-muted: #5c6170;
+      --accent-1: #7c6aef;
+      --accent-2: #6ee7b7;
+      --accent-gradient: linear-gradient(135deg, #7c6aef, #38bdf8);
+      --accent-gradient-2: linear-gradient(135deg, #6ee7b7, #38bdf8);
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --success: #34d399;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* ─── Background Orbs ─── */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.15;
+      animation: orbFloat 20s ease-in-out infinite;
+    }
+
+    .orb-1 {
+      width: 600px;
+      height: 600px;
+      background: #7c6aef;
+      top: -15%;
+      right: -10%;
+      animation-duration: 25s;
+    }
+
+    .orb-2 {
+      width: 500px;
+      height: 500px;
+      background: #38bdf8;
+      bottom: -20%;
+      left: -10%;
+      animation-duration: 30s;
+      animation-delay: -5s;
+    }
+
+    .orb-3 {
+      width: 350px;
+      height: 350px;
+      background: #6ee7b7;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0.08;
+      animation-duration: 22s;
+      animation-delay: -10s;
+    }
+
+    @keyframes orbFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(30px, -20px) scale(1.05); }
+      50% { transform: translate(-20px, 30px) scale(0.95); }
+      75% { transform: translate(15px, 15px) scale(1.02); }
+    }
+
+    /* ─── Page Layout ─── */
+    .page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+      padding: 24px;
+    }
+
+    /* ─── Card ─── */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(12, 12, 29, 0.8);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 44px 36px 36px;
+      box-shadow: 0 8px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+      animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes cardIn {
+      from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* ─── Logo ─── */
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-gradient);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 0 24px rgba(124, 106, 239, 0.35);
+    }
+
+    .logo-text {
+      font-size: 28px;
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+
+    .card-subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 36px;
+    }
+
+    /* ─── Form ─── */
+    .form-group {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    .form-input::placeholder {
+      color: transparent;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent-1);
+      box-shadow: 0 0 0 3px rgba(124, 106, 239, 0.12);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .form-input.error {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+    }
+
+    .form-label {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+      pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      background: transparent;
+      padding: 0 4px;
+    }
+
+    .form-input:focus ~ .form-label,
+    .form-input:not(:placeholder-shown) ~ .form-label {
+      top: 0;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: var(--accent-1);
+      background: linear-gradient(to bottom, var(--bg-primary), rgba(12, 12, 29, 0.9));
+      letter-spacing: 0.3px;
+    }
+
+    .form-error {
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 6px;
+      display: none;
+      animation: errorIn 0.2s ease;
+    }
+
+    .form-error.visible {
+      display: block;
+    }
+
+    @keyframes errorIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── Button ─── */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent-gradient);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(124, 106, 239, 0.35);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary .btn-text {
+      transition: opacity 0.2s ease;
+    }
+
+    .btn-primary.loading .btn-text {
+      opacity: 0;
+    }
+
+    .btn-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      opacity: 0;
+      animation: none;
+    }
+
+    .btn-primary.loading .btn-spinner {
+      opacity: 1;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    /* ─── Error Banner ─── */
+    .error-banner {
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--danger);
+      margin-bottom: 20px;
+      display: none;
+      animation: errorIn 0.25s ease;
+    }
+
+    .error-banner.visible {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── Footer Link ─── */
+    .card-footer {
+      text-align: center;
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .card-footer a {
+      color: var(--accent-1);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .card-footer a:hover {
+      color: #9b8ff5;
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="page">
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">🧠</div>
+      <span class="logo-text">DocMind</span>
+    </div>
+    <p class="card-subtitle">Sign in to your workspace</p>
+
+    <div class="error-banner" id="error-banner">
+      <span>❌</span>
+      <span id="error-banner-text"></span>
+    </div>
+
+    <form id="login-form" novalidate>
+      <div class="form-group">
+        <input type="email" class="form-input" id="email" placeholder="Email" autocomplete="email" required />
+        <label class="form-label" for="email">Email address</label>
+        <div class="form-error" id="email-error"></div>
+      </div>
+
+      <div class="form-group">
+        <input type="password" class="form-input" id="password" placeholder="Password" autocomplete="current-password" required />
+        <label class="form-label" for="password">Password</label>
+        <div class="form-error" id="password-error"></div>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submit-btn">
+        <span class="btn-text">Sign In</span>
+        <div class="btn-spinner"></div>
+      </button>
+    </form>
+
+    <div class="card-footer">
+      Don't have an account? <a href="/signup.html">Sign up</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('login-form');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const submitBtn = document.getElementById('submit-btn');
+const errorBanner = document.getElementById('error-banner');
+const errorBannerText = document.getElementById('error-banner-text');
+const emailError = document.getElementById('email-error');
+const passwordError = document.getElementById('password-error');
+
+// If already logged in, redirect
+(async function checkAuth() {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          window.location.href = data.user.tenantId ? '/index.html' : '/tenant-setup.html';
+          return;
+        }
+      }
+    } catch {}
+  }
+})();
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function clearErrors() {
+  emailInput.classList.remove('error');
+  passwordInput.classList.remove('error');
+  emailError.classList.remove('visible');
+  passwordError.classList.remove('visible');
+  errorBanner.classList.remove('visible');
+}
+
+function showFieldError(input, errorEl, message) {
+  input.classList.add('error');
+  errorEl.textContent = message;
+  errorEl.classList.add('visible');
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearErrors();
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  // Validate
+  let valid = true;
+
+  if (!email) {
+    showFieldError(emailInput, emailError, 'Email is required');
+    valid = false;
+  } else if (!validateEmail(email)) {
+    showFieldError(emailInput, emailError, 'Please enter a valid email');
+    valid = false;
+  }
+
+  if (!password) {
+    showFieldError(passwordInput, passwordError, 'Password is required');
+    valid = false;
+  }
+
+  if (!valid) return;
+
+  // Loading state
+  submitBtn.classList.add('loading');
+  submitBtn.disabled = true;
+
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+
+      if (data.user && data.user.tenantId) {
+        window.location.href = '/index.html';
+      } else {
+        window.location.href = '/tenant-setup.html';
+      }
+    } else {
+      errorBannerText.textContent = data.error || 'Invalid email or password.';
+      errorBanner.classList.add('visible');
+    }
+  } catch (err) {
+    errorBannerText.textContent = 'Network error. Please try again.';
+    errorBanner.classList.add('visible');
+  } finally {
+    submitBtn.classList.remove('loading');
+    submitBtn.disabled = false;
+  }
+});
+
+// Clear errors on input
+emailInput.addEventListener('input', () => {
+  emailInput.classList.remove('error');
+  emailError.classList.remove('visible');
+});
+
+passwordInput.addEventListener('input', () => {
+  passwordInput.classList.remove('error');
+  passwordError.classList.remove('visible');
+});
+</script>
+</body>
+</html>

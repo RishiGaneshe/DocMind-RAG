@@ -1,0 +1,32 @@
+services:
+  redis:
+    image: redis:alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+
+  ollama:
+    image: ollama/ollama
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"
+
+  rag-app:
+    build: .
+    container_name: rag-app
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_URL=http://ollama:11434/api/embeddings
+    depends_on:
+      - redis
+      - ollama
+
+volumes:
+  ollama_data:

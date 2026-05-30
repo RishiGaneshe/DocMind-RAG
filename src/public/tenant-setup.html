@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set Up Your Workspace — DocMind</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #06060e;
+      --bg-secondary: #0c0c1d;
+      --bg-tertiary: #111128;
+      --bg-card: rgba(255, 255, 255, 0.025);
+      --bg-card-hover: rgba(255, 255, 255, 0.045);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(255, 255, 255, 0.12);
+      --text-primary: #e8eaf0;
+      --text-secondary: #9ba1b0;
+      --text-muted: #5c6170;
+      --accent-1: #7c6aef;
+      --accent-2: #6ee7b7;
+      --accent-gradient: linear-gradient(135deg, #7c6aef, #38bdf8);
+      --accent-gradient-2: linear-gradient(135deg, #6ee7b7, #38bdf8);
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --success: #34d399;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* ─── Background Orbs ─── */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.15;
+      animation: orbFloat 20s ease-in-out infinite;
+    }
+
+    .orb-1 {
+      width: 600px; height: 600px;
+      background: #7c6aef;
+      top: -15%; right: -10%;
+      animation-duration: 25s;
+    }
+
+    .orb-2 {
+      width: 500px; height: 500px;
+      background: #38bdf8;
+      bottom: -20%; left: -10%;
+      animation-duration: 30s;
+      animation-delay: -5s;
+    }
+
+    .orb-3 {
+      width: 350px; height: 350px;
+      background: #6ee7b7;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0.08;
+      animation-duration: 22s;
+      animation-delay: -10s;
+    }
+
+    @keyframes orbFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(30px, -20px) scale(1.05); }
+      50% { transform: translate(-20px, 30px) scale(0.95); }
+      75% { transform: translate(15px, 15px) scale(1.02); }
+    }
+
+    /* ─── Loading Overlay ─── */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s ease;
+    }
+
+    .loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-pulse {
+      width: 48px; height: 48px;
+      border-radius: var(--radius);
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(124,106,239,0.3); }
+      50% { transform: scale(1.1); box-shadow: 0 0 40px rgba(124,106,239,0.5); }
+    }
+
+    /* ─── Page Layout ─── */
+    .page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+      padding: 24px;
+    }
+
+    /* ─── Card ─── */
+    .card {
+      width: 100%;
+      max-width: 500px;
+      background: rgba(12, 12, 29, 0.8);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 40px 40px;
+      box-shadow: 0 8px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+      animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(24px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ─── Header ─── */
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(124, 106, 239, 0.1);
+      border: 1px solid rgba(124, 106, 239, 0.2);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-1);
+      margin-bottom: 24px;
+    }
+
+    .step-badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-1);
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .card-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .card-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    /* ─── Form ─── */
+    .form-group {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .form-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent-1);
+      box-shadow: 0 0 0 3px rgba(124, 106, 239, 0.12);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .form-input.error {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+    }
+
+    .form-input.slug-input {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .form-error {
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 6px;
+      display: none;
+      animation: errorIn 0.2s ease;
+    }
+
+    .form-error.visible { display: block; }
+
+    @keyframes errorIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── Slug Preview ─── */
+    .slug-preview {
+      margin-top: 16px;
+      padding: 16px 20px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+
+    .slug-preview-value {
+      color: var(--accent-2);
+      font-weight: 500;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .slug-preview-domain {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .slug-preview-icon {
+      font-size: 16px;
+      margin-right: 8px;
+    }
+
+    /* ─── Button ─── */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent-gradient);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+      margin-top: 28px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(124, 106, 239, 0.35);
+    }
+
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary .btn-text { transition: opacity 0.2s ease; }
+    .btn-primary.loading .btn-text { opacity: 0; }
+
+    .btn-spinner {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      opacity: 0;
+      animation: none;
+    }
+
+    .btn-primary.loading .btn-spinner {
+      opacity: 1;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    /* ─── Error Banner ─── */
+    .error-banner {
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--danger);
+      margin-bottom: 20px;
+      display: none;
+      animation: errorIn 0.25s ease;
+    }
+
+    .error-banner.visible {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── Welcome note ─── */
+    .welcome-note {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: rgba(110, 231, 183, 0.06);
+      border: 1px solid rgba(110, 231, 183, 0.12);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+    }
+
+    .welcome-note-icon {
+      font-size: 20px;
+      min-width: 24px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-pulse">🧠</div>
+</div>
+
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="page">
+  <div class="card">
+    <div class="step-badge">
+      <div class="step-badge-dot"></div>
+      Getting Started
+    </div>
+
+    <h1 class="card-title">Set up your workspace</h1>
+    <p class="card-description">Create a workspace for your team. This is where your documents and AI conversations will live.</p>
+
+    <div class="welcome-note" id="welcome-note">
+      <span class="welcome-note-icon">👋</span>
+      <span>Welcome, <strong id="user-name-display">there</strong>! Let's get your workspace ready.</span>
+    </div>
+
+    <div class="error-banner" id="error-banner">
+      <span>❌</span>
+      <span id="error-banner-text"></span>
+    </div>
+
+    <form id="tenant-form" novalidate>
+      <div class="form-group">
+        <label class="form-group-label" for="tenantName">Organization / Workspace Name</label>
+        <input type="text" class="form-input" id="tenantName" placeholder="e.g. Acme Corp" required />
+        <div class="form-error" id="name-error"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-group-label" for="tenantSlug">Workspace URL Slug</label>
+        <input type="text" class="form-input slug-input" id="tenantSlug" placeholder="e.g. acme-corp" required />
+        <div class="form-hint">Lowercase letters, numbers, and hyphens only</div>
+        <div class="form-error" id="slug-error"></div>
+      </div>
+
+      <div class="slug-preview" id="slug-preview">
+        <span class="slug-preview-icon">🔗</span>
+        <span class="slug-preview-value" id="slug-preview-value">your-workspace</span>
+        <span class="slug-preview-domain">.docmind.ai</span>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submit-btn">
+        <span class="btn-text">Create Workspace</span>
+        <div class="btn-spinner"></div>
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('tenant-form');
+const nameInput = document.getElementById('tenantName');
+const slugInput = document.getElementById('tenantSlug');
+const slugPreviewValue = document.getElementById('slug-preview-value');
+const submitBtn = document.getElementById('submit-btn');
+const errorBanner = document.getElementById('error-banner');
+const errorBannerText = document.getElementById('error-banner-text');
+const nameError = document.getElementById('name-error');
+const slugError = document.getElementById('slug-error');
+const loadingOverlay = document.getElementById('loading-overlay');
+const userNameDisplay = document.getElementById('user-name-display');
+
+let currentUser = null;
+let slugManuallyEdited = false;
+
+// ─── Auth Guard ───
+(async function authGuard() {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  try {
+    let res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (res.status === 401) {
+      // Try refresh
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        const refreshRes = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+        const refreshData = await refreshRes.json();
+        if (refreshRes.ok && refreshData.success) {
+          localStorage.setItem('accessToken', refreshData.accessToken);
+          res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + refreshData.accessToken }
+          });
+        } else {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login.html';
+          return;
+        }
+      } else {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login.html';
+        return;
+      }
+    }
+
+    const data = await res.json();
+    if (!data.success || !data.user) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/login.html';
+      return;
+    }
+
+    currentUser = data.user;
+
+    // If user already has a tenant, redirect to main app
+    if (currentUser.tenantId) {
+      window.location.href = '/index.html';
+      return;
+    }
+
+    // Show user name
+    if (currentUser.firstName) {
+      userNameDisplay.textContent = currentUser.firstName;
+    }
+
+    // Hide loading overlay
+    loadingOverlay.classList.add('hidden');
+
+  } catch (err) {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/login.html';
+  }
+})();
+
+// ─── Slug auto-generation ───
+function generateSlug(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+nameInput.addEventListener('input', () => {
+  nameInput.classList.remove('error');
+  nameError.classList.remove('visible');
+
+  if (!slugManuallyEdited) {
+    const slug = generateSlug(nameInput.value);
+    slugInput.value = slug;
+    slugPreviewValue.textContent = slug || 'your-workspace';
+  }
+});
+
+slugInput.addEventListener('input', () => {
+  slugManuallyEdited = true;
+  slugInput.classList.remove('error');
+  slugError.classList.remove('visible');
+
+  // Clean slug value
+  const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  slugInput.value = clean;
+  slugPreviewValue.textContent = clean || 'your-workspace';
+});
+
+slugInput.addEventListener('blur', () => {
+  if (!slugInput.value.trim()) {
+    slugManuallyEdited = false;
+  }
+});
+
+// ─── Form Submit ───
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBanner.classList.remove('visible');
+  nameInput.classList.remove('error');
+  slugInput.classList.remove('error');
+  nameError.classList.remove('visible');
+  slugError.classList.remove('visible');
+
+  const name = nameInput.value.trim();
+  const slug = slugInput.value.trim();
+
+  let valid = true;
+
+  if (!name) {
+    nameInput.classList.add('error');
+    nameError.textContent = 'Workspace name is required';
+    nameError.classList.add('visible');
+    valid = false;
+  }
+
+  if (!slug) {
+    slugInput.classList.add('error');
+    slugError.textContent = 'Slug is required';
+    slugError.classList.add('visible');
+    valid = false;
+  } else if (slug.length < 3) {
+    slugInput.classList.add('error');
+    slugError.textContent = 'Slug must be at least 3 characters';
+    slugError.classList.add('visible');
+    valid = false;
+  } else if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && slug.length > 1) {
+    slugInput.classList.add('error');
+    slugError.textContent = 'Slug must start and end with a letter or number';
+    slugError.classList.add('visible');
+    valid = false;
+  }
+
+  if (!valid) return;
+
+  submitBtn.classList.add('loading');
+  submitBtn.disabled = true;
+
+  try {
+    const response = await fetch('/api/tenants', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('accessToken')
+      },
+      body: JSON.stringify({ name, slug })
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Store new tokens with tenantId included
+      if (data.accessToken) localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+      window.location.href = '/index.html';
+    } else {
+      errorBannerText.textContent = data.error || 'Failed to create workspace. Please try again.';
+      errorBanner.classList.add('visible');
+    }
+  } catch (err) {
+    errorBannerText.textContent = 'Network error. Please try again.';
+    errorBanner.classList.add('visible');
+  } finally {
+    submitBtn.classList.remove('loading');
+    submitBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

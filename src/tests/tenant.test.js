@@ -1,0 +1,5 @@
+describe('Tenant API', () => {
+  it('should pass a skeleton test', () => {
+    expect(true).toBe(true)
+  })
+})

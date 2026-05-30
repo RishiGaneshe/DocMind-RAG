@@ -38,4 +38,7 @@ project/
 └── package.json             # NPM dependencies and scripts
 ```
 "# DocMind-RAG" 
+<<<<<<< HEAD
 "# DocMind-RAG" 
+=======
+>>>>>>> a047e274d29a55bb44c5bb6793a19d0279212ec5
