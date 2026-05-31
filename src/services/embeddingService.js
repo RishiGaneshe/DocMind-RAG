@@ -6,7 +6,7 @@ const REQUEST_TIMEOUT_MS = 30000
 const MAX_RETRIES = 3
 const CONCURRENCY_LIMIT = 5
 
-const RETRYABLE_STATUS_CODES = [ 429, 500, 502, 503, 504 ]
+const RETRYABLE_STATUS_CODES = [ 404, 429, 500, 502, 503, 504 ]
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -27,7 +27,8 @@ const generateEmbeddingRequest = async (text) => {
       signal: controller.signal,
       body: JSON.stringify({
         model: EMBEDDING_MODEL,
-        prompt: text
+        prompt: text,
+        truncate: true
       })
     })
 
