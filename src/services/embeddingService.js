@@ -1,7 +1,7 @@
 import pLimit from 'p-limit'
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/embeddings'
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'nomic-embed-text'
+const OLLAMA_URL = 'http://ollama:11434/api/embeddings' || 'http://localhost:11434/api/embeddings'
+const EMBEDDING_MODEL = 'nomic-embed-text'
 const REQUEST_TIMEOUT_MS = 30000
 const MAX_RETRIES = 3
 const CONCURRENCY_LIMIT = 5
