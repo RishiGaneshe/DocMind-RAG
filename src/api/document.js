@@ -65,18 +65,32 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     const embeddings = await generateEmbeddings(chunks)
 
-    const vectorsToUpsert = embeddings.map(
-      (embedding, index) => ({
-        id: `${doc.id}-chunk-${index}`,
-        values: embedding,
+    const vectorsToUpsert = embeddings
+      .map((embedding, index) => ({
+        embedding,
+        index
+      }))
+      .filter(item => item.embedding !== null)
+      .map(item => ({
+        id: `${doc.id}-chunk-${item.index}`,
+        values: item.embedding,
         metadata: {
           tenantId: tenant.id,
           documentId: doc.id,
-          chunkIndex: index,
-          text: chunks[index]
+          chunkIndex: item.index,
+          text: chunks[item.index]
         }
-      })
-    )
+      }))
+
+    const skippedChunks = chunks.length - vectorsToUpsert.length
+
+    if (skippedChunks > 0) {
+      console.warn(`[DOCUMENT API] ${skippedChunks}/${chunks.length} chunks failed embedding and were skipped`)
+    }
+
+    if (vectorsToUpsert.length === 0) {
+      throw new Error('All chunks failed to embed — document cannot be stored')
+    }
 
     await upsertVectors( tenant.id, vectorsToUpsert )
 
@@ -92,7 +106,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       message: 'Document processed and embeddings stored successfully',
       documentId: doc.id,
       filename: file.originalname,
-      chunksProcessed: chunks.length,
+      chunksProcessed: vectorsToUpsert.length,
+      chunksSkipped: skippedChunks,
+      totalChunks: chunks.length,
       pages: numPages
     })
 

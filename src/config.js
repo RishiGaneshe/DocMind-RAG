@@ -2,10 +2,11 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 export const config = {
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 4500,
   databaseUrl: process.env.DATABASE_URL,
   geminiApiKey: process.env.GEMINI_API_KEY,
   groqApiKey: process.env.GROQ_API_KEY,
+  openAiKey: process.env.OPEN_AI_KEY,
   pineconeApiKey: process.env.PINECONE_API_KEY,
   pineconeIndexName: process.env.PINECONE_INDEX_NAME || 'rag-index',
   jwtSecret: process.env.JWT_SECRET,

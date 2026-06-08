@@ -80,4 +80,4 @@ The application utilizes a robust deployment strategy:
    - **rag-redis**: Redis cache.
    - **rag-ollama**: Local embedding server pulling `nomic-embed-text`.
    - **rag-app**: The core Node.js application.
-3. **Nginx Reverse Proxy**: Located on the AWS EC2 instance, Nginx securely routes traffic from `rag.docmind.codewithrishi.fun` to the Node app on port 4000. The Nginx configuration explicitly disables buffering to perfectly support SSE streaming responses.
+3. **Nginx Reverse Proxy**: Located on the AWS EC2 instance, Nginx securely routes traffic from `rag.docmind.codewithrishi.fun` to the Node app on port 4500. The Nginx configuration explicitly disables buffering to perfectly support SSE streaming responses.

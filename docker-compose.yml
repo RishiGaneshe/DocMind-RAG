@@ -25,13 +25,19 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     entrypoint: /bin/sh
-    command: -c "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"
+    command: -c "ollama serve & sleep 5 && ollama pull mxbai-embed-large && wait"
+    deploy:
+      resources:
+        reservations:
+          memory: 2G       
+        limits:
+          memory: 4G      
 
   rag-app:
     build: .
     container_name: rag-app
     ports:
-      - "4000:4000"
+      - "4500:4500"
     env_file:
       - .env
     environment:

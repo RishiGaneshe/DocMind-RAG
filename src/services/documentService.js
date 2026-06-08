@@ -1,7 +1,16 @@
 import crypto from 'crypto'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 
-const CHUNK_SIZE = 400
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const STANDARD_FONT_DATA_URL = path.join(
+  __dirname, '..', '..', 'node_modules', 'pdfjs-dist', 'standard_fonts/'
+)
+
+const CHUNK_SIZE = 500
 const CHUNK_OVERLAP = 70
 
 
@@ -28,7 +37,9 @@ export const createChunks = ( text, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVER
 
 const extractTextFromPdf = async (fileBuffer) => {
   const loadingTask = pdfjsLib.getDocument({
-    data: new Uint8Array(fileBuffer)
+    data: new Uint8Array(fileBuffer),
+    standardFontDataUrl: STANDARD_FONT_DATA_URL,
+    useSystemFonts: true
   })
 
   const pdf = await loadingTask.promise
