@@ -14,18 +14,36 @@ import { requireTenant } from '../middleware/requireTenant.js'
 
 const router = Router({ mergeParams: true })
 
-// Apply auth middleware to all routes
 router.use(authenticate, requireTenant)
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 20 * 1024 * 1024
+    fileSize: 1 * 1024 * 1024
   }
 })
 
 
-router.post('/', upload.single('file'), async (req, res) => {
+const handleUpload = (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          error: 'File size should be less than 1 MB due to the LLM processing load'
+        })
+      }
+      return res.status(400).json({
+        success: false,
+        error: err.message || 'File upload failed'
+      })
+    }
+    next()
+  })
+}
+
+
+router.post('/', handleUpload, async (req, res) => {
   let doc
   try {
     const { tenantId } = req.params

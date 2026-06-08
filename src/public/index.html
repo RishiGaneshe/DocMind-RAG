@@ -845,7 +845,7 @@
       <div class="drop-zone" id="drop-zone">
         <div class="drop-zone-icon">📄</div>
         <div class="drop-zone-text">Drag & drop your PDF or <strong id="browse-trigger">browse</strong></div>
-        <div class="drop-zone-hint">PDF files up to 20 MB</div>
+        <div class="drop-zone-hint">PDF files up to 1 MB only — please upload smaller files</div>
         <input type="file" id="file-input" accept=".pdf,application/pdf" />
       </div>
       <div class="upload-progress" id="upload-progress">
@@ -1051,7 +1051,7 @@ function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container')
   const toast = document.createElement('div')
   toast.className = `toast ${type}`
-  const icons = { success: '✅', error: '❌', info: 'ℹ️' }
+  const icons = { success: '', error: '', info: '' }
   toast.innerHTML = `<span>${icons[type] || ''}</span><span>${message}</span>`
   container.appendChild(toast)
   setTimeout(() => toast.remove(), 4000)
@@ -1102,8 +1102,8 @@ async function handleFileUpload(file) {
     return
   }
 
-  if (file.size > 20 * 1024 * 1024) {
-    showToast('File must be under 20 MB.', 'error')
+  if (file.size > 1 * 1024 * 1024) {
+    showToast('File exceeds 1 MB limit. Please upload a smaller file.', 'error')
     return
   }
 
@@ -1261,7 +1261,7 @@ async function sendQuery() {
 
   } catch (error) {
     console.error('Query error:', error)
-    updateAIMessage(aiMsgId, `⚠️ ${error.message}`)
+    updateAIMessage(aiMsgId, `Error: ${error.message}`)
     showToast(error.message, 'error')
   }
 
@@ -1314,7 +1314,7 @@ async function handleSSEStream(response, msgId) {
               sourcesContainer.style.display = 'block'
             }
           } else if (currentEvent === 'error') {
-            bubble.innerHTML = `<span style="color:var(--danger)">⚠️ ${parsed.error}</span>`
+            bubble.innerHTML = `<span style="color:var(--danger)">Error: ${parsed.error}</span>`
           }
         } catch {}
 
@@ -1334,7 +1334,7 @@ async function handleSSEStream(response, msgId) {
   } catch (error) {
     console.error('SSE stream error:', error)
     if (!fullText) {
-      bubble.innerHTML = '<span style="color:var(--danger)">⚠️ Stream interrupted</span>'
+      bubble.innerHTML = '<span style="color:var(--danger)">Error: Stream interrupted</span>'
     }
   }
 }

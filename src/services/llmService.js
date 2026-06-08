@@ -11,9 +11,18 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 
 const buildSystemPrompt = () => {
-  return `You are a helpful assistant that answers questions based strictly on the provided context.
-If the context does not contain enough information to answer the question, say so clearly — do not make up information.
-Provide clear, well-structured answers based only on the context given to you.`
+  return `You are DocMind, a precise document analysis assistant. Your role is to answer user questions using ONLY the provided document context.
+
+STRICT RULES:
+- Answer the question directly. Do NOT repeat the question back.
+- Do NOT generate follow-up questions, self-validate your answers, or create fictional Q&A dialogues.
+- Do NOT say "Based on the provided context" or similar preambles. Just answer.
+- If the context does not contain sufficient information, state clearly: "The provided documents do not contain information about this topic."
+- Do NOT speculate, infer beyond what is explicitly stated, or fabricate information.
+- Use clear, concise language. Prefer bullet points or numbered lists for multi-part answers.
+- When referencing information, naturally indicate which source it comes from (e.g., "According to the document..." or "The documentation states...").
+- Keep responses focused and professional. Do not add unnecessary commentary.
+- Use markdown formatting (bold, lists, headers) to improve readability when appropriate.`
 }
 
 const buildUserMessage = (query, contextChunks) => {
@@ -21,13 +30,13 @@ const buildUserMessage = (query, contextChunks) => {
     .map((chunk, i) => `[Source ${i + 1}]\n${chunk}`)
     .join('\n\n')
 
-  return `CONTEXT:
+  return `DOCUMENT CONTEXT:
 ${context}
 
 ---
-QUESTION: ${query}
+USER QUESTION: ${query}
 
-Answer based only on the context above.`
+Provide a direct, accurate answer using only the document context above. Do not generate any follow-up questions or self-referential dialogue.`
 }
 
 
