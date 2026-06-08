@@ -25,7 +25,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     entrypoint: /bin/sh
-    command: -c "ollama serve & sleep 5 && ollama pull mxbai-embed-large && wait"
+    command: -c "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"
     deploy:
       resources:
         reservations:
