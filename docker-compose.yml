@@ -17,22 +17,6 @@ services:
     ports:
       - "6379:6379"
 
-  ollama:
-    image: ollama/ollama
-    container_name: rag-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    entrypoint: /bin/sh
-    command: -c "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"
-    deploy:
-      resources:
-        reservations:
-          memory: 2G       
-        limits:
-          memory: 4G      
-
   rag-app:
     build: .
     container_name: rag-app
@@ -41,14 +25,11 @@ services:
     env_file:
       - .env
     environment:
-      - OLLAMA_URL=http://ollama:11434/api/embeddings
       - DATABASE_URL=postgresql://postgres:postgres123@postgres:5432/rag_db
       - REDIS_URL=redis://redis:6379
     depends_on:
       - postgres
       - redis
-      - ollama
 
 volumes:
   postgres_data:
-  ollama_data:

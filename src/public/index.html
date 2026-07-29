@@ -1102,8 +1102,8 @@ async function handleFileUpload(file) {
     return
   }
 
-  if (file.size > 1 * 1024 * 1024) {
-    showToast('File exceeds 1 MB limit. Please upload a smaller file.', 'error')
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('File exceeds 10 MB limit. Please upload a smaller file.', 'error')
     return
   }
 

@@ -19,7 +19,7 @@ router.use(authenticate, requireTenant)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 1 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024
   }
 })
 
@@ -30,7 +30,7 @@ const handleUpload = (req, res, next) => {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
           success: false,
-          error: 'File size should be less than 1 MB due to the LLM processing load'
+          error: 'File size should be less than 10 MB due to the LLM processing load'
         })
       }
       return res.status(400).json({
