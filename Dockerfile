@@ -2,10 +2,10 @@ FROM node:22-alpine
 
 WORKDIR /application
 
-COPY package*.json ./ 
+COPY package*.json ./
 
 RUN npm cache clean --force
-RUN npm install
+RUN npm install --omit=dev
 RUN npm install -g pm2
 
 COPY . .

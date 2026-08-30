@@ -46,6 +46,12 @@ export const getRedis = () => {
   return redis
 }
 
+
+export const getRedisSafe = () => {
+  if (!redis || redis.status !== 'ready') return null
+  return redis
+}
+
 export const blacklistToken = async (jti, expiresInSeconds) => {
   if (!redis) return
   const key = `${TOKEN_BLACKLIST_PREFIX}${jti}`

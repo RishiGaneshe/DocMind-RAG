@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize'
 import { sequelize } from '../services/db.js'
+import { embeddingConfig } from '../config.js'
 import { Tenant } from './Tenant.js'
 
 export const Document = sequelize.define(
@@ -47,10 +48,19 @@ export const Document = sequelize.define(
       defaultValue: 0
     },
 
+    // Recorded so the UI can show a page count without reopening the PDF, and
+    // so a suspiciously low count on a large file flags a parse problem.
+    numPages: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+
+    // Recorded per document so a model switch is visible in the data rather
+    // than inferred. Rows written before this change may name an older model.
     embeddingModel: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'nomic-embed-text'
+      defaultValue: embeddingConfig.model
     },
 
     status: {

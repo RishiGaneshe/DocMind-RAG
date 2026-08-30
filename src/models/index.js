@@ -1,6 +1,7 @@
 import { User } from './User.js'
 import { Tenant } from './Tenant.js'
 import { Document } from './Document.js'
+import { DocumentChunk } from './DocumentChunk.js'
 
 
 User.hasOne(Tenant, {
@@ -33,5 +34,17 @@ Document.belongsTo(Tenant, {
   foreignKey: 'tenantId'
 })
 
+// Deleting a document takes its chunks with it, so the lexical index can never
+// outlive the rows it points at.
+Document.hasMany(DocumentChunk, {
+  foreignKey: 'documentId',
+  as: 'chunks',
+  onDelete: 'CASCADE'
+})
 
-export { User, Tenant, Document }
+DocumentChunk.belongsTo(Document, {
+  foreignKey: 'documentId'
+})
+
+
+export { User, Tenant, Document, DocumentChunk }

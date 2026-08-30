@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>DocMind — Ask your documents anything</title>
+    <meta
+      name="description"
+      content="DocMind turns your PDFs into an answerable knowledge base. Upload documents, ask questions in plain language, and get streamed answers that cite the exact chunk they came from."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0A0D0F" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DocMind" />
+    <meta property="og:title" content="DocMind — Ask your documents anything" />
+    <meta
+      property="og:description"
+      content="Multi-tenant retrieval-augmented generation. Upload PDFs, ask questions, get answers that cite their sources."
+    />
+    <meta property="og:image" content="/og-image.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      // Resolve the theme before first paint so there is no flash of the wrong
+      // theme when React mounts (plan §15.2). Dark is the default experience.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('docmind.theme')
+          var resolved =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.dataset.theme = resolved
+        } catch (_) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-CbXgAA2x.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-hePW80VL.js">
+    <link rel="modulepreload" crossorigin href="/assets/markdown-gL6wMAk_.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-B41yCXS-.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-DfVFEfaI.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-ui-CgnNTXjz.js">
+    <link rel="modulepreload" crossorigin href="/assets/constants-1PwtexVw.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-data-BVt40Yh5.js">
+    <link rel="modulepreload" crossorigin href="/assets/sessionStore-CHCMvT4a.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-DNjxRTEP.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CUtWX57M.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

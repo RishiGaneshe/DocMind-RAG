@@ -4,7 +4,13 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "node --test \"src/tests/**/*.test.js\"",
+    "migrate": "node src/scripts/migrate.js up",
+    "migrate:status": "node src/scripts/migrate.js status",
+    "migrate:undo": "node src/scripts/migrate.js undo",
+    "backfill:chunks": "node src/scripts/backfillChunks.js"
   },
   "author": "",
   "license": "ISC",
@@ -13,8 +19,11 @@
     "@pinecone-database/pinecone": "^7.2.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
+    "express-rate-limit": "8.1.0",
+    "helmet": "8.1.0",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
@@ -22,6 +31,7 @@
     "pdfjs-dist": "^5.7.284",
     "pg": "^8.21.0",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "umzug": "3.8.2"
   }
 }

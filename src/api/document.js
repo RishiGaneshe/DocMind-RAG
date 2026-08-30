@@ -1,149 +1,204 @@
 import { Router } from 'express'
 import multer from 'multer'
+import { Op } from 'sequelize'
 
-import { processDocument } from '../services/documentService.js'
-import { generateEmbeddings } from '../services/embeddingService.js'
+import { hashBuffer } from '../services/documentService.js'
+import {
+  enqueueIngestion,
+  ingestionLoad,
+  ingestionSaturated
+} from '../services/ingestionService.js'
+import { EMBEDDING_MODEL } from '../services/embeddingService.js'
+import { bumpCorpusVersion } from '../services/cacheService.js'
 
 import { Document } from '../models/Document.js'
-import { Tenant } from '../models/Tenant.js'
+import { isUniqueViolation } from '../models/schema.js'
 
-import { upsertVectors } from '../rag/vectorStore.js'
+import { deleteVectors, listVectorIds } from '../rag/vectorStore.js'
+import { deleteChunksForDocument, buildChunkId } from '../rag/chunkStore.js'
 
 import { authenticate } from '../middleware/authenticate.js'
 import { requireTenant } from '../middleware/requireTenant.js'
+import { uploadLimiter } from '../middleware/rateLimit.js'
+import { uploadConfig } from '../config.js'
 
 const router = Router({ mergeParams: true })
 
+// `requireTenant` already proves the URL's tenantId matches the caller's own
+// tenant, so no route below needs to load the Tenant row to validate it.
 router.use(authenticate, requireTenant)
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const LIST_ATTRIBUTES = [
+  'id',
+  'filename',
+  'mimeType',
+  'fileSize',
+  'totalChunks',
+  'numPages',
+  'status',
+  'failureReason',
+  'processingStartedAt',
+  'processingCompletedAt',
+  'createdAt'
+]
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  }
+  limits: { fileSize: uploadConfig.maxFileBytes }
 })
-
 
 const handleUpload = (req, res, next) => {
   upload.single('file')(req, res, (err) => {
-    if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({
-          success: false,
-          error: 'File size should be less than 10 MB due to the LLM processing load'
-        })
-      }
-      return res.status(400).json({
+    if (!err) return next()
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      const mb = Math.floor(uploadConfig.maxFileBytes / (1024 * 1024))
+
+      return res.status(413).json({
         success: false,
-        error: err.message || 'File upload failed'
+        error: `File size should be less than ${mb} MB due to the LLM processing load`
       })
     }
-    next()
+
+    return res.status(400).json({
+      success: false,
+      error: err.message || 'File upload failed'
+    })
   })
 }
 
+/**
+ * The stored copy of an identical file, if there is one.
+ *
+ * A document still PROCESSING counts as a match so that a double-clicked upload
+ * does not start the pipeline twice on the same bytes.
+ */
+const findDuplicate = async (tenantId, contentHash) =>
+  await Document.findOne({
+    where: {
+      tenantId,
+      contentHash,
+      status: { [Op.in]: ['PENDING', 'PROCESSING', 'COMPLETED'] }
+    },
+    order: [['createdAt', 'DESC']],
+    attributes: LIST_ATTRIBUTES.concat('contentHash')
+  })
 
-router.post('/', handleUpload, async (req, res) => {
-  let doc
+/**
+ * Accepts the file, records it, and answers 202 before any parsing happens.
+ *
+ * Embedding a long PDF takes longer than many proxies will hold a connection
+ * open, and a client that timed out had no way to learn whether its upload had
+ * actually succeeded. The work now runs on a bounded queue and the client polls
+ * `GET /:id` for `status`.
+ */
+router.post('/', uploadLimiter, handleUpload, async (req, res) => {
   try {
     const { tenantId } = req.params
     const file = req.file
 
     if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' })
+      return res.status(400).json({ success: false, error: 'No file uploaded' })
     }
 
     if (file.mimetype !== 'application/pdf') {
-      return res.status(400).json({ error: 'Only PDF files are supported'})
+      return res
+        .status(415)
+        .json({ success: false, error: 'Only PDF files are supported' })
     }
 
-    const tenant = await Tenant.findByPk(tenantId)
+    if (ingestionSaturated()) {
+      const load = ingestionLoad()
 
-    if (!tenant) {
-      return res.status(404).json({ error: 'Tenant not found' })
-    }
+      console.warn(
+        `[DOCUMENT API] ingestion queue full (${load.queued}/${load.capacity})`
+      )
 
-    const { chunks, contentHash, numPages, metadata } = await processDocument( file.buffer, file.originalname )
-
-    if (!chunks.length) {
-      return res.status(400).json({ error: 'No extractable text found in document' })
-    }
-
-    doc = await Document.create({
-      tenantId: tenant.id,
-      filename: file.originalname,
-      mimeType: file.mimetype,
-      fileSize: file.size,
-      contentHash,
-      totalChunks: chunks.length,
-      embeddingModel: 'nomic-embed-text',
-      status: 'PROCESSING',
-      processingStartedAt: new Date()
-    })
-
-    const embeddings = await generateEmbeddings(chunks)
-
-    const vectorsToUpsert = embeddings
-      .map((embedding, index) => ({
-        embedding,
-        index
-      }))
-      .filter(item => item.embedding !== null)
-      .map(item => ({
-        id: `${doc.id}-chunk-${item.index}`,
-        values: item.embedding,
-        metadata: {
-          tenantId: tenant.id,
-          documentId: doc.id,
-          chunkIndex: item.index,
-          text: chunks[item.index]
-        }
-      }))
-
-    const skippedChunks = chunks.length - vectorsToUpsert.length
-
-    if (skippedChunks > 0) {
-      console.warn(`[DOCUMENT API] ${skippedChunks}/${chunks.length} chunks failed embedding and were skipped`)
-    }
-
-    if (vectorsToUpsert.length === 0) {
-      throw new Error('All chunks failed to embed — document cannot be stored')
-    }
-
-    await upsertVectors( tenant.id, vectorsToUpsert )
-
-    await doc.update({
-      status: 'COMPLETED',
-      processingCompletedAt: new Date()
-    })  
-
-    console.log(`[DOCUMENT API] Document processed and stored successfully: ${file.originalname} (Tenant: ${tenantId})`)
-
-    return res.status(201).json({
-      success: true,
-      message: 'Document processed and embeddings stored successfully',
-      documentId: doc.id,
-      filename: file.originalname,
-      chunksProcessed: vectorsToUpsert.length,
-      chunksSkipped: skippedChunks,
-      totalChunks: chunks.length,
-      pages: numPages
-    })
-
-  } catch (error) {
-  
-    if (doc) {
-      await doc.update({
-        status: 'FAILED',
-        processingCompletedAt: new Date()
+      return res.status(503).json({
+        success: false,
+        error: 'The ingestion queue is full. Please retry in a few minutes.',
+        code: 'INGESTION_BUSY',
+        queued: load.queued
       })
     }
 
-    console.error( 'Error processing document upload:', error )
-    return res.status(500).json({ success: false, error: 'Internal server error'})
+    const contentHash = hashBuffer(file.buffer)
+
+    if (uploadConfig.dedupeEnabled) {
+      const existing = await findDuplicate(tenantId, contentHash)
+
+      if (existing) {
+        console.log(
+          `[DOCUMENT API] duplicate upload of ${file.originalname} ` +
+            `(tenant ${tenantId}) resolved to ${existing.id}`
+        )
+
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          message: 'This file has already been uploaded.',
+          document: existing
+        })
+      }
+    }
+
+    let doc
+
+    try {
+      doc = await Document.create({
+        tenantId,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        contentHash,
+        totalChunks: 0,
+        embeddingModel: EMBEDDING_MODEL,
+        status: 'PENDING'
+      })
+    } catch (error) {
+      // Two uploads of the same file can race past the check above and collide
+      // on the partial unique index. The loser reports the winner rather than a
+      // 500, which is what the caller wanted anyway.
+      if (!isUniqueViolation(error)) throw error
+
+      const existing = await findDuplicate(tenantId, contentHash)
+
+      if (!existing) throw error
+
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: 'This file has already been uploaded.',
+        document: existing
+      })
+    }
+
+    // Deliberately not awaited. The queue owns the work from here; failures are
+    // recorded on the document row, which is what the client polls.
+    enqueueIngestion(doc.id, tenantId, file.originalname, file.buffer)
+
+    const load = ingestionLoad()
+
+    return res.status(202).json({
+      success: true,
+      message: 'Upload accepted. Processing has been queued.',
+      documentId: doc.id,
+      filename: doc.filename,
+      status: doc.status,
+      statusUrl: `/api/tenants/${tenantId}/documents/${doc.id}`,
+      queuePosition: load.queued
+    })
+  } catch (error) {
+    console.error('Error accepting document upload:', error)
+
+    return res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' })
   }
 })
-
 
 router.get('/', async (req, res) => {
   try {
@@ -152,15 +207,175 @@ router.get('/', async (req, res) => {
     const documents = await Document.findAll({
       where: { tenantId },
       order: [['createdAt', 'DESC']],
-      attributes: ['id', 'filename', 'mimeType', 'fileSize', 'totalChunks', 'status', 'createdAt']
+      attributes: LIST_ATTRIBUTES
     })
 
-    console.log(`[DOCUMENT API] Fetched ${documents.length} documents for tenant: ${tenantId}`)
+    console.log(
+      `[DOCUMENT API] Fetched ${documents.length} documents for tenant: ${tenantId}`
+    )
 
     return res.json({ success: true, documents })
   } catch (error) {
     console.error('Error fetching documents:', error)
-    return res.status(500).json({ success: false, error: 'Internal server error' })
+
+    return res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * Status endpoint for the 202 handshake. Returns the whole row rather than a
+ * bare status string so a polling client can render progress, the page count and
+ * a failure reason from one response.
+ */
+router.get('/:documentId', async (req, res) => {
+  try {
+    const { tenantId, documentId } = req.params
+
+    if (!UUID_PATTERN.test(documentId)) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid document id' })
+    }
+
+    const document = await Document.findOne({
+      where: { tenantId, id: documentId },
+      attributes: LIST_ATTRIBUTES
+    })
+
+    if (!document) {
+      return res.status(404).json({ success: false, error: 'Document not found' })
+    }
+
+    return res.json({
+      success: true,
+      document,
+      // `PENDING` and `PROCESSING` are the only states worth polling.
+      processing: document.status === 'PENDING' || document.status === 'PROCESSING'
+    })
+  } catch (error) {
+    console.error('Error fetching document:', error)
+
+    return res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * Collects every vector id belonging to a document.
+ *
+ * Two sources are unioned. Ids are derived arithmetically from `totalChunks`,
+ * which is exact for documents this codebase wrote, and listed by prefix from
+ * Pinecone, which catches documents whose chunk count was never recorded and any
+ * vector left behind by a partial failure.
+ */
+const collectVectorIds = async (tenantId, document) => {
+  const ids = new Set()
+
+  for (let index = 0; index < (document.totalChunks ?? 0); index++) {
+    ids.add(buildChunkId(document.id, index))
+  }
+
+  try {
+    let paginationToken
+
+    do {
+      const page = await listVectorIds(tenantId, {
+        prefix: `${document.id}-chunk-`,
+        paginationToken
+      })
+
+      page.ids.forEach((id) => ids.add(id))
+      paginationToken = page.next
+    } while (paginationToken)
+  } catch (error) {
+    console.warn(
+      `[DOCUMENT API] prefix listing failed for ${document.id} ` +
+        `(${error.message}); falling back to the ${ids.size} derived id(s)`
+    )
+  }
+
+  return [...ids]
+}
+
+/**
+ * Deletes a document from all three stores.
+ *
+ * Ordered so that a failure part-way through can only ever leave the corpus
+ * smaller than the client asked for, never inconsistent: vectors first, then
+ * chunk rows, then the document itself. A vector that outlives its chunk row is
+ * unreachable, whereas a chunk row that outlives its vector is a lexical hit
+ * that can never be reranked against anything.
+ */
+router.delete('/:documentId', async (req, res) => {
+  try {
+    const { tenantId, documentId } = req.params
+
+    if (!UUID_PATTERN.test(documentId)) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid document id' })
+    }
+
+    const document = await Document.findOne({
+      where: { tenantId, id: documentId }
+    })
+
+    if (!document) {
+      return res.status(404).json({ success: false, error: 'Document not found' })
+    }
+
+    if (document.status === 'PENDING' || document.status === 'PROCESSING') {
+      // The queued job holds no reference to this row beyond its id, and it
+      // writes with `where: { id, tenantId }`, so deleting now would let the
+      // pipeline resurrect orphaned vectors after the row is gone.
+      return res.status(409).json({
+        success: false,
+        error: 'This document is still being processed. Try again once it finishes.',
+        code: 'DOCUMENT_BUSY',
+        status: document.status
+      })
+    }
+
+    const vectorIds = await collectVectorIds(tenantId, document)
+
+    if (vectorIds.length > 0) {
+      await deleteVectors(tenantId, vectorIds)
+    }
+
+    const removedChunks = await deleteChunksForDocument(tenantId, documentId)
+
+    await document.destroy()
+
+    await bumpCorpusVersion(tenantId)
+
+    console.log(
+      `[DOCUMENT API] Deleted ${documentId} (tenant ${tenantId}): ` +
+        `${vectorIds.length} vector(s), ${removedChunks} chunk row(s)`
+    )
+
+    return res.json({
+      success: true,
+      message: 'Document deleted',
+      documentId,
+      vectorsDeleted: vectorIds.length,
+      chunksDeleted: removedChunks
+    })
+  } catch (error) {
+    console.error('Error deleting document:', error)
+
+    if (error.code === 'VECTOR_STORE_NOT_READY') {
+      return res.status(503).json({
+        success: false,
+        error: 'Vector store is not ready, so the document was left in place.'
+      })
+    }
+
+    return res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' })
   }
 })
 

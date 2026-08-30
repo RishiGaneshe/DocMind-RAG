@@ -1,0 +1,1 @@
+import{c as e,i as t,n,t as r}from"./sessionStore-CHCMvT4a.js";import{a as i}from"./vendor-data-BVt40Yh5.js";function a(){let a=n(),o=r(e=>e.tenant),s=i({queryKey:t.tenant.me,queryFn:({signal:t})=>e(t),enabled:!!a});return{...s,tenant:s.data??o}}export{a as t};

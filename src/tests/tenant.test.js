@@ -1,5 +1,7 @@
+import { describe, it } from 'node:test'
+
 describe('Tenant API', () => {
-  it('should pass a skeleton test', () => {
-    expect(true).toBe(true)
+  it('scopes documents to the authenticated tenant', {
+    todo: 'needs an HTTP + database fixture'
   })
 })

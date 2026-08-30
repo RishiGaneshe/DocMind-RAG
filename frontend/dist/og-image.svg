@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="DocMind — ask your documents anything">
+  <defs>
+    <radialGradient id="glow" cx="22%" cy="18%" r="70%">
+      <stop offset="0%" stop-color="#A4D8FF" stop-opacity="0.22" />
+      <stop offset="55%" stop-color="#2489D4" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#0A0D0F" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#A4D8FF" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="#A4D8FF" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#0A0D0F" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+
+  <g transform="translate(96 104)">
+    <rect width="72" height="72" rx="18" fill="#141A1F" stroke="#252E35" />
+    <rect x="15" y="18" width="42" height="8" rx="4" fill="#A4D8FF" />
+    <rect x="15" y="32" width="30" height="8" rx="4" fill="#A4D8FF" opacity="0.72" />
+    <rect x="15" y="46" width="18" height="8" rx="4" fill="#A4D8FF" opacity="0.42" />
+  </g>
+
+  <text
+    x="192"
+    y="156"
+    font-family="Inter Tight, Inter, system-ui, sans-serif"
+    font-size="44"
+    font-weight="600"
+    letter-spacing="-0.02em"
+    fill="#EDF1F5"
+  >
+    DocMind
+  </text>
+
+  <text
+    x="96"
+    y="300"
+    font-family="Inter Tight, Inter, system-ui, sans-serif"
+    font-size="82"
+    font-weight="700"
+    letter-spacing="-0.03em"
+    fill="#EDF1F5"
+  >
+    Ask your documents
+  </text>
+  <text
+    x="96"
+    y="392"
+    font-family="Inter Tight, Inter, system-ui, sans-serif"
+    font-size="82"
+    font-weight="700"
+    letter-spacing="-0.03em"
+    fill="#A4D8FF"
+  >
+    anything.
+  </text>
+
+  <rect x="96" y="436" width="420" height="2" rx="1" fill="url(#rule)" />
+
+  <text
+    x="96"
+    y="492"
+    font-family="Inter, system-ui, sans-serif"
+    font-size="27"
+    font-weight="400"
+    fill="#B4BEC7"
+  >
+    Upload PDFs. Ask in plain language. Every answer cites the
+  </text>
+  <text
+    x="96"
+    y="530"
+    font-family="Inter, system-ui, sans-serif"
+    font-size="27"
+    font-weight="400"
+    fill="#B4BEC7"
+  >
+    exact chunk it came from.
+  </text>
+</svg>
