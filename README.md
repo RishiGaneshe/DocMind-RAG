@@ -123,6 +123,13 @@ This allows Voyage AI to optimize the generated vectors for retrieval-based work
    - Batch failure handling.
    - Preserves chunk-to-embedding alignment when failures occur.
 
+8. **Embeddable Chat Widget (API keys)**
+   - Workspace owners mint scoped API keys; the secret is shown once and stored only as a SHA-256 hash.
+   - A key carries its workspace, so an embedded widget needs no tenant id and no user login.
+   - Anonymous visitors chat directly against the key: per-key and per-visitor Redis rate limits, a daily quota, and a per-key origin allowlist bound the exposure.
+   - Retrieved sources are redacted before they leave the server, so raw chunk text and internal document ids never reach a public page.
+   - Keys can be rotated with a grace window or revoked instantly.
+
 ## API Endpoints
 
 ### Authentication Endpoints
@@ -157,6 +164,44 @@ Pass:
 
 to receive the generated response through **Server-Sent Events (SSE)**.
 
+### API Key Endpoints
+
+Owner-facing key management. All of these require the workspace owner's JWT.
+
+- `POST /api/tenants/:tenantId/api-keys` - Mints a key. The plaintext secret is returned **once, in this response only**; the server stores a SHA-256 hash and cannot recover it.
+- `GET /api/tenants/:tenantId/api-keys` - Lists keys with their prefix, scopes, origin allowlist and limits. Never returns a secret.
+- `GET /api/tenants/:tenantId/api-keys/:keyId/usage` - Current-window and current-day counters for one key.
+- `PATCH /api/tenants/:tenantId/api-keys/:keyId` - Edits the label, scopes, origin allowlist or per-key limits.
+- `POST /api/tenants/:tenantId/api-keys/:keyId/rotate` - Issues a replacement and puts the old secret into a grace window (`PUBLIC_ROTATION_GRACE_HOURS`) so a deployed page keeps working while the new key ships.
+- `DELETE /api/tenants/:tenantId/api-keys/:keyId` - Revokes immediately. The row is kept for the audit trail.
+
+### Widget Configuration Endpoints
+
+- `GET /api/tenants/:tenantId/widget` - Returns the workspace's widget appearance and behaviour, the defaults, and the available source modes.
+- `PUT /api/tenants/:tenantId/widget` - Partial update. Only the keys sent are stored, so a later change to a default reaches every workspace that never overrode it.
+
+### Public Widget Endpoints
+
+The embeddable chatbot surface. **No user login and no cookies** — the caller
+authenticates with an API key sent in `X-Api-Key`, and every visitor of the
+customer's website shares that one key.
+
+- `GET /api/public/config` - What the widget needs to render itself: workspace name, appearance, and the input limits it should enforce client-side. Requires the `chat:config` scope.
+- `POST /api/public/chat` - Asks a question. Requires the `chat:query` scope. Pass `"stream": true` for SSE.
+
+```bash
+curl -X POST https://your-host/api/public/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-Api-Key: pk_live_…' \
+  -d '{"query":"What is the refund window?","stream":true}'
+```
+
+Because the key ships inside a public page, it is treated as public by
+construction. What actually contains it is layered instead: the scopes on the
+key, a per-key origin allowlist, per-key and per-visitor Redis rate limits, a
+daily quota, source redaction, and revocation. See `API_KEY_PLAN.md` for the
+threat model and `API_KEY_IMPLEMENTATION.md` for how each layer works.
+
 ## Local Development Setup
 
 ### 1. Clone the Repository
@@ -172,18 +217,24 @@ Required services include:
 - PostgreSQL
 - Redis
 - Pinecone
-- Voyage AI
-- Groq
+- Voyage AI (embeddings and reranking)
+- NVIDIA NIM (answer generation)
 
 Example:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres123@postgres:5432/rag_db
 REDIS_URL=redis://redis:6379
+JWT_SECRET=any_long_random_string
 VOYAGE_API_KEY=your_voyage_api_key
+NVIDIA_AI_KEY=your_nvidia_api_key
 PINECONE_API_KEY=your_pinecone_api_key
-GROQ_API_KEY=your_groq_api_key
 ```
+
+Those six are the whole requirement. Every other variable in `.env.example` is
+a tunable whose default is compiled into `src/config.js`, documented inline
+there and in the template — including the `PUBLIC_*` block that bounds the
+unauthenticated widget surface.
 
 Never commit the `.env` file or production API keys to the repository.
 

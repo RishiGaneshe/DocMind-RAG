@@ -9,9 +9,14 @@ import { rateLimitConfig } from '../config.js'
  * the abuse actually starts — with no bucket at all. `ipKeyGenerator` is used
  * rather than raw `req.ip` because it normalises IPv6 to a /56 prefix, so a
  * client with a whole address range cannot mint a fresh bucket per request.
+ *
+ * The field is `userId`, not `id`: that is what `authenticate` puts on `req.user`
+ * from the JWT payload. Reading `id` here silently sent every authenticated
+ * request down the IP branch — the exact NAT problem this comment claims to
+ * avoid.
  */
 const keyFor = (req) =>
-  req.user?.id ? `u:${req.user.id}` : `ip:${ipKeyGenerator(req.ip)}`
+  req.user?.userId ? `u:${req.user.userId}` : `ip:${ipKeyGenerator(req.ip)}`
 
 const build = (max, message) =>
   rateLimit({

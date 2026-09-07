@@ -97,8 +97,11 @@ export const promptGuardrails = (req, res, next) => {
 
   if (!verdict) return next()
 
+  // `userId`, not `id` — that is the field `authenticate` sets. Reading `id`
+  // logged every rejection as `anonymous`, which made the one signal this line
+  // exists to provide useless.
   console.warn(
-    `[GUARDRAILS] rejected a query from ${req.user?.id ?? 'anonymous'}: ${verdict.code}`
+    `[GUARDRAILS] rejected a query from ${req.user?.userId ?? req.apiKey?.keyPrefix ?? 'anonymous'}: ${verdict.code}`
   )
 
   return res.status(400).json({

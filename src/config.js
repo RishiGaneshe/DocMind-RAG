@@ -153,8 +153,79 @@ export const rateLimitConfig = {
   authMax: num(process.env.RATE_LIMIT_AUTH_MAX, 20)
 }
 
+// ── Public (API-key) surface ──
+// The widget route is the only internet-facing, unauthenticated entry point, so
+// every limit here is deliberately tighter than its dashboard equivalent. A key
+// embedded in a browser bundle is public by construction; these values, not the
+// key's secrecy, are what bound the damage.
+export const publicApiConfig = {
+  // Request body ceiling. A question plus six turns of history fits in a few KB;
+  // anything larger is either a mistake or an attempt to inflate token cost.
+  bodyLimit: process.env.PUBLIC_BODY_LIMIT || '32kb',
+
+  // Per-key and per-visitor windows, both enforced in Redis so they hold across
+  // processes rather than per-instance like `express-rate-limit`'s memory store.
+  windowSeconds: num(process.env.PUBLIC_RATE_WINDOW_SECONDS, 60),
+  defaultRatePerMinute: num(process.env.PUBLIC_RATE_PER_MINUTE, 30),
+  visitorRatePerMinute: num(process.env.PUBLIC_VISITOR_RATE_PER_MINUTE, 10),
+  defaultDailyQuota: num(process.env.PUBLIC_DAILY_QUOTA, 500),
+
+  // Resolved-key cache. Short enough that a revocation which somehow bypassed
+  // the explicit cache invalidation still expires on its own.
+  keyCacheTtlSeconds: num(process.env.PUBLIC_KEY_CACHE_TTL, 300),
+  // Unknown keys are cached too, so a flood of garbage keys cannot be turned
+  // into a flood of database lookups.
+  keyNegativeCacheTtlSeconds: num(process.env.PUBLIC_KEY_NEGATIVE_CACHE_TTL, 30),
+  // `lastUsedAt` is a nice-to-have, not an audit log. Writing it on every
+  // message would mean one UPDATE per chat turn.
+  lastUsedThrottleSeconds: num(process.env.PUBLIC_LAST_USED_THROTTLE, 60),
+
+  // Refuse to mint a key with no origin allowlist. Off by default because a new
+  // key that rejects everything looks broken; the API reports `unrestricted`
+  // instead so the dashboard can warn.
+  requireOrigins: bool(process.env.PUBLIC_KEY_REQUIRE_ORIGINS, false),
+  // Plain http origins carry no confidentiality and invite mixed-content
+  // failures. Loopback is always allowed so local development works.
+  allowInsecureOrigins: bool(process.env.PUBLIC_ALLOW_INSECURE_ORIGINS, false),
+  maxOriginsPerKey: num(process.env.PUBLIC_MAX_ORIGINS_PER_KEY, 20),
+
+  // Question and history ceilings, independent of the dashboard's.
+  maxQueryLength: num(process.env.PUBLIC_MAX_QUERY_LENGTH, 1000),
+  maxHistoryTurns: num(process.env.PUBLIC_MAX_HISTORY_TURNS, 6),
+  maxHistoryChars: num(process.env.PUBLIC_MAX_HISTORY_CHARS, 6000),
+  // A public caller cannot widen retrieval and so cannot widen the rerank and
+  // generation bill.
+  maxTopK: num(process.env.PUBLIC_MAX_TOP_K, 6),
+
+  // Hours an old secret keeps working after a rotation.
+  rotationGraceHours: num(process.env.PUBLIC_ROTATION_GRACE_HOURS, 24),
+
+  maxKeysPerTenant: num(process.env.PUBLIC_MAX_KEYS_PER_TENANT, 25)
+}
+
+// How much of a retrieved source an anonymous visitor may see. `labels` keeps
+// citations useful without shipping raw chunk text or internal document ids.
+export const WIDGET_SOURCE_MODES = ['full', 'labels', 'hidden']
+export const DEFAULT_WIDGET_SOURCE_MODE =
+  process.env.PUBLIC_DEFAULT_SOURCE_MODE || 'labels'
+
+export const API_KEY_SCOPES = [
+  'chat:query',
+  'chat:config',
+  'chat:filter',
+  'documents:read',
+  'documents:write'
+]
+
+export const DEFAULT_PUBLIC_SCOPES = ['chat:query', 'chat:config']
+export const DEFAULT_SECRET_SCOPES = [
+  'chat:query',
+  'chat:config',
+  'chat:filter',
+  'documents:read'
+]
+
 export const NO_ANSWER_MESSAGE =
   'I could not find any relevant information in the uploaded documents to answer your question.'
-
 // Sentinel the model is instructed to emit when the context is insufficient.
 export const NO_ANSWER_SENTINEL = 'NOT_IN_CONTEXT'

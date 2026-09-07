@@ -12,13 +12,16 @@ import { config } from './config.js'
 import { sequelize } from './services/db.js'
 import { runMigrations, pendingMigrations } from './services/migrator.js'
 import { connectRedis, disconnectRedis } from './services/redisService.js'
-import { User, Tenant, Document, DocumentChunk } from './models/index.js'
+import { User, Tenant, Document, DocumentChunk, ApiKey } from './models/index.js'
 
 import authRoutes from './api/auth.js'
 import tenantRoutes from './api/tenant.js'
 import documentRoutes from './api/document.js'
 import queryRoutes from './api/query.js'
 import healthRoutes from './api/health.js'
+import apiKeyRoutes from './api/apiKeys.js'
+import widgetRoutes from './api/widget.js'
+import publicChatRoutes from './api/publicChat.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { generalLimiter, authLimiter } from './middleware/rateLimit.js'
 
@@ -32,6 +35,27 @@ app.use(
     crossOriginResourcePolicy: false
   })
 )
+
+/**
+ * The public widget surface, mounted ahead of the global CORS and JSON parser
+ * because both are shaped for the dashboard and wrong here.
+ *
+ * CORS: the `cors` package answers every preflight itself and merely omits
+ * `Access-Control-Allow-Origin` when the origin is not on the allowlist. Mounted
+ * below it, this router's `OPTIONS` would be answered against the dashboard's
+ * allowlist and every widget on a customer site would fail before any of our
+ * code ran. A preflight carries no `X-Api-Key`, so per-key origin enforcement
+ * cannot happen there — it happens in `originGuard`, once the key is resolved.
+ *
+ * JSON: this router parses at 32kb rather than 1mb, because that parse is the one
+ * cost an unidentified caller can impose.
+ *
+ * It also sits above `app.use('/api', generalLimiter)` on purpose. That limiter
+ * keeps its counters in process memory, so N instances would allow N times the
+ * limit; public traffic is bounded instead by the Redis counters in
+ * `enforceQuota`, which hold across processes.
+ */
+app.use('/api/public', publicChatRoutes)
 
 app.use(
   cors({
@@ -51,6 +75,8 @@ app.use('/api', generalLimiter)
 
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/tenants', tenantRoutes)
+app.use('/api/tenants/:tenantId/api-keys', apiKeyRoutes)
+app.use('/api/tenants/:tenantId/widget', widgetRoutes)
 app.use('/api/tenants/:tenantId/documents', documentRoutes)
 app.use('/api/tenants/:tenantId/query', queryRoutes)
 

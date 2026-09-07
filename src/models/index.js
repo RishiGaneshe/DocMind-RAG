@@ -2,6 +2,7 @@ import { User } from './User.js'
 import { Tenant } from './Tenant.js'
 import { Document } from './Document.js'
 import { DocumentChunk } from './DocumentChunk.js'
+import { ApiKey } from './ApiKey.js'
 
 
 User.hasOne(Tenant, {
@@ -47,4 +48,25 @@ DocumentChunk.belongsTo(Document, {
 })
 
 
-export { User, Tenant, Document, DocumentChunk }
+// Deleting a workspace takes its keys with it, so a revoked-by-deletion key can
+// never resolve to a tenant row that is no longer there.
+Tenant.hasMany(ApiKey, {
+  foreignKey: 'tenantId',
+  as: 'apiKeys',
+  onDelete: 'CASCADE'
+})
+
+ApiKey.belongsTo(Tenant, {
+  foreignKey: 'tenantId'
+})
+
+// The creator is recorded for audit only, so losing the user must not lose the
+// key: the FK is ON DELETE SET NULL in the migration.
+ApiKey.belongsTo(User, {
+  foreignKey: 'createdBy',
+  as: 'creator',
+  constraints: false
+})
+
+
+export { User, Tenant, Document, DocumentChunk, ApiKey }

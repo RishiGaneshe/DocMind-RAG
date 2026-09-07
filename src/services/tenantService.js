@@ -38,15 +38,21 @@ export const createTenant = async ({ name, slug, ownerId }) => {
   // Generate new tokens with tenantId embedded
   const tokens = generateTokens(user)
 
-  return { tenant, ...tokens }
+  // Re-read through the safe projection rather than returning the freshly
+  // created instance, which carries the deprecated plaintext `apiKey` its
+  // default generated a moment ago.
+  return { tenant: await getTenantById(tenant.id), ...tokens }
 }
 
-export const getTenantById = async (id) => {
-  const tenant = await Tenant.findByPk(id)
-  return tenant
-}
+/**
+ * The deprecated per-tenant plaintext key is excluded at the query level rather
+ * than stripped from the result, so a future caller of these helpers cannot
+ * reintroduce the leak by forgetting to strip it.
+ */
+const SAFE_ATTRIBUTES = { exclude: ['apiKey'] }
 
-export const getTenantByOwnerId = async (ownerId) => {
-  const tenant = await Tenant.findOne({ where: { ownerId } })
-  return tenant
-}
+export const getTenantById = async (id) =>
+  await Tenant.findByPk(id, { attributes: SAFE_ATTRIBUTES })
+
+export const getTenantByOwnerId = async (ownerId) =>
+  await Tenant.findOne({ where: { ownerId }, attributes: SAFE_ATTRIBUTES })

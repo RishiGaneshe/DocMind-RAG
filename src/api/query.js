@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { queryRAG, queryRAGStream } from '../rag/ragEngine.js'
-import { createAnswerFilter } from '../rag/answerStream.js'
+import { streamAnswer } from '../rag/answerSse.js'
 import { authenticate } from '../middleware/authenticate.js'
 import { requireTenant } from '../middleware/requireTenant.js'
 import { queryLimiter } from '../middleware/rateLimit.js'
 import { promptGuardrails } from '../middleware/guardrails.js'
-import { retrievalConfig, llmConfig, NO_ANSWER_MESSAGE } from '../config.js'
+import { retrievalConfig, llmConfig } from '../config.js'
 
 const router = Router({ mergeParams: true })
 
@@ -169,7 +169,13 @@ router.post('/', async (req, res) => {
     const options = { topK, documentIds, history }
 
     if (req.body.stream === true) {
-      return handleStreamResponse(tenantId, query, options, res)
+      // The relay lives in `rag/answerSse.js` so the public widget route
+      // enforces the identical answer contract rather than its own copy.
+      return streamAnswer({
+        res,
+        produce: () => queryRAGStream(tenantId, query, options),
+        logLabel: `[QUERY API] ${tenantId}`
+      })
     }
 
     const result = await queryRAG(tenantId, query, options)
@@ -190,121 +196,5 @@ router.post('/', async (req, res) => {
   }
 })
 
-
-const handleStreamResponse = async (tenantId, query, options, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no'
-  })
-
-  const sendSSE = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-  }
-
-  try {
-    const result = await queryRAGStream(tenantId, query, options)
-
-    sendSSE('sources', {
-      sources: result.sources,
-      query: result.query,
-      searchQuery: result.searchQuery,
-      rewritten: result.rewritten,
-      chunksUsed: result.chunksUsed || 0
-    })
-
-    if (result.noResults) {
-      sendSSE('chunk', { content: NO_ANSWER_MESSAGE })
-      sendSSE('done', { success: true })
-      console.log(`[QUERY API] ${tenantId}: no results (${result.retrieval?.stage})`)
-      return res.end()
-    }
-
-    // Enforces the answer contract on the way out: swaps the refusal sentinel
-    // for the user-facing message and strips citations that point at sources
-    // which were never supplied.
-    const filter = createAnswerFilter(result.sourceCount)
-
-    const reader = result.stream.getReader()
-    const decoder = new TextDecoder()
-
-    let buffer = ''
-    let upstreamDone = false
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-
-          if (!trimmed || !trimmed.startsWith('data: ')) continue
-
-          const payload = trimmed.slice(6)
-
-          if (payload === '[DONE]') {
-            upstreamDone = true
-            continue
-          }
-
-          try {
-            const content = JSON.parse(payload)?.choices?.[0]?.delta?.content
-
-            if (!content) continue
-
-            const emitted = filter.push(content)
-
-            if (emitted) sendSSE('chunk', { content: emitted })
-          } catch {
-            // A malformed delta is skipped rather than failing the stream.
-          }
-        }
-      }
-
-      const tail = filter.flush()
-
-      if (tail) sendSSE('chunk', { content: tail })
-
-      if (filter.refused) {
-        sendSSE('chunk', { content: NO_ANSWER_MESSAGE })
-      }
-
-      sendSSE('done', { success: true })
-    } finally {
-      reader.releaseLock()
-      result.cleanup()
-    }
-
-    if (filter.droppedCitations > 0) {
-      console.warn(
-        `[QUERY API] dropped ${filter.droppedCitations} out-of-range citation(s)`
-      )
-    }
-
-    console.log(
-      `[QUERY API] ${tenantId}: streamed ${result.chunksUsed} chunks, ` +
-        `stage=${result.retrieval?.stage}` +
-        `${upstreamDone ? '' : ', upstream ended without [DONE]'}` +
-        `${filter.refused ? ', model refused' : ''}`
-    )
-
-    res.end()
-
-  } catch (error) {
-    console.error('Streaming error:', error)
-    sendSSE('error', {
-      error: 'An error occurred while generating the answer.'
-    })
-    res.end()
-  }
-}
 
 export default router

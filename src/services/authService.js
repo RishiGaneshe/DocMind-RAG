@@ -162,7 +162,11 @@ export const getUserProfile = async (userId) => {
       {
         model: Tenant,
         as: 'tenant',
-        attributes: ['id', 'name', 'slug', 'apiKey']
+        // `apiKey` is deliberately absent. It is the deprecated per-tenant
+        // plaintext key, and a profile response is the last place a credential
+        // should travel — it is fetched on every page load and cached by
+        // whatever holds the session.
+        attributes: ['id', 'name', 'slug']
       }
     ]
   })
