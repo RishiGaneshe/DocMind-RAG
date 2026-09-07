@@ -22,10 +22,11 @@ jobs:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
     - name: Deploy on Development Server
+      env:
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
+        ENV_FILE: ${{ secrets.ENV_FILE_DEV }}
       run: |
-        SERVER_USER=${{ secrets.SERVER_USER }}
-        SERVER_IP=${{ secrets.SERVER_IP }}
-        ENV_FILE="${{ secrets.ENV_FILE_DEV }}"
 
         # Ensure app directory exists
         ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "
