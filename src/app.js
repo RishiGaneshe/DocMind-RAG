@@ -36,25 +36,6 @@ app.use(
   })
 )
 
-/**
- * The public widget surface, mounted ahead of the global CORS and JSON parser
- * because both are shaped for the dashboard and wrong here.
- *
- * CORS: the `cors` package answers every preflight itself and merely omits
- * `Access-Control-Allow-Origin` when the origin is not on the allowlist. Mounted
- * below it, this router's `OPTIONS` would be answered against the dashboard's
- * allowlist and every widget on a customer site would fail before any of our
- * code ran. A preflight carries no `X-Api-Key`, so per-key origin enforcement
- * cannot happen there — it happens in `originGuard`, once the key is resolved.
- *
- * JSON: this router parses at 32kb rather than 1mb, because that parse is the one
- * cost an unidentified caller can impose.
- *
- * It also sits above `app.use('/api', generalLimiter)` on purpose. That limiter
- * keeps its counters in process memory, so N instances would allow N times the
- * limit; public traffic is bounded instead by the Redis counters in
- * `enforceQuota`, which hold across processes.
- */
 app.use('/api/public', publicChatRoutes)
 
 app.use(
