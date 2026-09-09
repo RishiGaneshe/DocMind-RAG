@@ -18,13 +18,20 @@ const run = (deltas, sourceCount = 3) => {
 
 describe('createAnswerFilter', () => {
   it('passes an ordinary answer through unchanged', () => {
-    const text = 'Audit logs are retained for 90 days [2].'
+    const text = 'Audit logs are retained for 90 days.'
 
     assert.equal(run([text]).out, text)
   })
 
+  it('strips in-range citation markers from the user-facing stream', () => {
+    const { out, filter } = run(['Audit logs are retained for 90 days [2].'])
+
+    assert.equal(out, 'Audit logs are retained for 90 days.')
+    assert.equal(filter.droppedCitations, 0)
+  })
+
   it('reassembles an answer split across many deltas', () => {
-    const text = 'Deletion runs nightly at 02:00 UTC [1] across all regions.'
+    const text = 'Deletion runs nightly at 02:00 UTC across all regions.'
 
     assert.equal(run([...text]).out, text)
   })
@@ -44,31 +51,31 @@ describe('createAnswerFilter', () => {
   })
 
   it('does not mistake an answer starting with "not" for a refusal', () => {
-    const text = 'Not all regions run the nightly job [3].'
+    const text = 'Not all regions run the nightly job.'
     const { out, filter } = run([text])
 
     assert.equal(filter.refused, false)
     assert.equal(out, text)
   })
 
-  it('keeps a citation marker split across two deltas', () => {
+  it('strips a citation marker split across two deltas', () => {
     const { out, filter } = run(['Retention is 90 days [', '2] per policy.'])
 
-    assert.equal(out, 'Retention is 90 days [2] per policy.')
+    assert.equal(out, 'Retention is 90 days per policy.')
     assert.equal(filter.droppedCitations, 0)
   })
 
   it('drops a citation pointing past the supplied sources', () => {
     const { out, filter } = run(['Retention is 90 days [9].'], 3)
 
-    assert.equal(out, 'Retention is 90 days .')
+    assert.equal(out, 'Retention is 90 days.')
     assert.equal(filter.droppedCitations, 1)
   })
 
   it('drops an out-of-range citation even when it arrives split', () => {
     const { out, filter } = run(['Revenue rose [', '14] last year.'], 6)
 
-    assert.equal(out, 'Revenue rose  last year.')
+    assert.equal(out, 'Revenue rose last year.')
     assert.equal(filter.droppedCitations, 1)
   })
 
@@ -78,10 +85,10 @@ describe('createAnswerFilter', () => {
 })
 
 describe('validateCitations', () => {
-  it('keeps in-range markers and reports which were used', () => {
+  it('strips in-range markers and reports which were used', () => {
     const result = validateCitations('Logs last 90 days [2][3].', 3)
 
-    assert.equal(result.answer, 'Logs last 90 days [2][3].')
+    assert.equal(result.answer, 'Logs last 90 days.')
     assert.deepEqual(result.citedSources, [2, 3])
     assert.equal(result.droppedCitations, 0)
   })
@@ -91,11 +98,13 @@ describe('validateCitations', () => {
 
     assert.equal(result.droppedCitations, 1)
     assert.deepEqual(result.citedSources, [1])
+    assert.equal(result.answer, 'Revenue rose and fell.')
     assert.ok(!result.answer.includes('[7]'))
+    assert.ok(!result.answer.includes('[1]'))
   })
 
-  it('leaves the answer byte-identical when nothing is dropped', () => {
-    const text = '  Spacing   and [1] punctuation preserved.  '
+  it('leaves the answer byte-identical when there are no markers', () => {
+    const text = '  Spacing   and punctuation preserved.  '
 
     assert.equal(validateCitations(text, 2).answer, text)
   })

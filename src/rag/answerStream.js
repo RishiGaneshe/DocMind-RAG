@@ -5,25 +5,27 @@ import {
 } from '../services/llmService.js'
 
 /**
- * Streams text through while validating citation markers, holding back a
+ * Streams text through while stripping citation markers, holding back a
  * trailing partial marker so a `[` at the end of one delta and `12]` at the
  * start of the next are judged as one token rather than emitted and then
- * contradicted.
+ * contradicted. Every `[n]` is removed from the user-facing stream; only
+ * out-of-range markers increment `droppedCount`.
  */
 const createCitationFilter = (sourceCount) => {
   let pending = ''
   let dropped = 0
 
   const scrub = (text) =>
-    text.replace(/\[(\d{1,3})\]/g, (marker, digits) => {
-      const n = Number(digits)
+    text
+      .replace(/\[(\d{1,3})\]/g, (_marker, digits) => {
+        const n = Number(digits)
 
-      if (n >= 1 && n <= sourceCount) return marker
+        if (n < 1 || n > sourceCount) dropped += 1
 
-      dropped += 1
-
-      return ''
-    })
+        return ''
+      })
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+([.,;:!?])/g, '$1')
 
   return {
     push(content) {

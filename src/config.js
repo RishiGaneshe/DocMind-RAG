@@ -226,6 +226,6 @@ export const DEFAULT_SECRET_SCOPES = [
 ]
 
 export const NO_ANSWER_MESSAGE =
-  'I could not find any relevant information in the uploaded documents to answer your question.'
+  "I don't have enough information to answer that confidently. Could you tell me a bit more about what you need?"
 // Sentinel the model is instructed to emit when the context is insufficient.
 export const NO_ANSWER_SENTINEL = 'NOT_IN_CONTEXT'

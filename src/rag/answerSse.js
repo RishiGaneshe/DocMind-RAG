@@ -6,9 +6,9 @@ import { NO_ANSWER_MESSAGE } from '../config.js'
  *
  * Extracted rather than duplicated because the fragile part is not the HTTP
  * plumbing but the answer contract enforced on the way out: the refusal sentinel
- * has to be swapped for user-facing prose, and citations pointing at sources that
- * were never supplied have to be stripped. Two copies of that would drift, and
- * the copy that drifted would be the public one.
+ * has to be swapped for user-facing prose, and citation markers have to be
+ * stripped so retrieval numbering never reaches the visitor. Two copies of that
+ * would drift, and the copy that drifted would be the public one.
  *
  * `buildSourcesEvent` is the only seam. The public route uses it to redact the
  * source list before it reaches an anonymous visitor.

@@ -14,7 +14,7 @@ import {
 
 export const WIDGET_DEFAULTS = {
   title: 'Ask us anything',
-  greeting: 'Hi! Ask me anything about this site and I will answer from our documentation.',
+  greeting: "Hi! Ask me anything — I'm here to help.",
   placeholder: 'Type your question…',
   suggestions: [],
   accentColor: '#2563eb',
