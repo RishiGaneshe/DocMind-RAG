@@ -77,7 +77,7 @@ export const retrievalConfig = {
 
 export const llmConfig = {
   url: process.env.NVIDIA_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
-  model: process.env.LLM_MODEL || 'meta/llama-3.2-11b-vision-instruct',
+  model: process.env.LLM_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b',
   temperature: num(process.env.LLM_TEMPERATURE, 0.2),
   topP: num(process.env.LLM_TOP_P, 0.9),
   maxTokens: num(process.env.LLM_MAX_TOKENS, 2048),
