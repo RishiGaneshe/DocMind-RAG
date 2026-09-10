@@ -4,6 +4,9 @@ const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const backoffWithJitter = (attempt) =>
+  1000 * 2 ** (attempt - 1) + Math.floor(Math.random() * 500)
+
 const requireApiKey = () => {
   if (!config.nvidiaAiKey) {
     const error = new Error('NVIDIA_AI_KEY is not configured')
@@ -160,7 +163,7 @@ export const generateAnswer = async (query, contextChunks, options = {}) => {
 
       if (!isRetryable(error) || attempt === llmConfig.maxRetries) break
 
-      const backoffMs = 1000 * 2 ** (attempt - 1)
+      const backoffMs = backoffWithJitter(attempt)
 
       console.warn(
         `[LLM] attempt ${attempt} failed (${error.message}). ` +
@@ -206,7 +209,14 @@ export const generateAnswerStream = async (query, contextChunks, options = {}) =
 
       if (!isRetryable(error) || attempt === llmConfig.maxRetries) break
 
-      await sleep(1000 * 2 ** (attempt - 1))
+      const backoffMs = backoffWithJitter(attempt)
+
+      console.warn(
+        `[LLM] stream attempt ${attempt} failed (${error.message}). ` +
+          `Retrying in ${backoffMs}ms`
+      )
+
+      await sleep(backoffMs)
     }
   }
 

@@ -82,7 +82,7 @@ export const llmConfig = {
   topP: num(process.env.LLM_TOP_P, 0.9),
   maxTokens: num(process.env.LLM_MAX_TOKENS, 2048),
   requestTimeoutMs: num(process.env.LLM_TIMEOUT_MS, 120000),
-  maxRetries: num(process.env.LLM_MAX_RETRIES, 2),
+  maxRetries: num(process.env.LLM_MAX_RETRIES, 4),
   maxHistoryTurns: num(process.env.LLM_MAX_HISTORY_TURNS, 6)
 }
 

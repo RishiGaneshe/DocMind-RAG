@@ -150,8 +150,19 @@ export const streamAnswer = async ({
   } catch (error) {
     console.error('Streaming error:', error)
 
+    const isProviderError = error.provider === 'nvidia' || error.status >= 500
+    const isAbort =
+      error.name === 'AbortError' || error.message?.includes('aborted')
+
+    const userMessage = isProviderError
+      ? 'The AI service is temporarily unavailable. Please try again in a moment.'
+      : isAbort
+        ? 'The request timed out. Please try again.'
+        : 'An error occurred while generating the answer.'
+
     sendSSE('error', {
-      error: 'An error occurred while generating the answer.'
+      error: userMessage,
+      retryable: isProviderError || isAbort
     })
 
     res.end()
