@@ -1,9 +1,110 @@
 import {
+  REASONING_RESUME_MIN_CHARS,
   SENTINEL_MAX_LENGTH,
   SENTINEL_NORMALIZED,
+  couldBeReasoningHead,
+  findAnswerStart,
+  findReasoningBoundary,
+  looksLikeReasoningHead,
   normalizeForSentinel,
-  scrubSourceLeaks
+  scrubSourceLeaks,
+  stripReasoning
 } from '../services/llmService.js'
+
+/**
+ * Holds the head of the stream back just long enough to tell an answer apart
+ * from the model thinking out loud. A reply that does not open like
+ * deliberation is released on the first delta that rules it out — a token or
+ * two — so ordinary answers stream with no added delay.
+ *
+ * Once deliberation is detected the gate drops content until the model marks
+ * where its answer starts (`</think>`, "Final answer:", a horizontal rule) or
+ * until a paragraph arrives that is plainly answer rather than plan. If
+ * neither ever happens, `flush` extracts the answer from what was buffered,
+ * which costs that one reply its streaming but not its content.
+ */
+const createReasoningGate = () => {
+  let pending = ''
+  let mode = 'head' // 'head' undecided → 'pass' streaming | 'drop' discarding
+  let suppressed = false
+  let trimming = true // The answer never opens on whitespace a boundary left.
+
+  const trimLeading = (text) => {
+    if (!trimming) return text
+
+    const out = text.replace(/^\s+/, '')
+
+    if (out) trimming = false
+
+    return out
+  }
+
+  const release = () => {
+    const out = pending
+
+    pending = ''
+    mode = 'pass'
+
+    return trimLeading(out)
+  }
+
+  // Where the dropped text stops being deliberation, or -1 to keep dropping.
+  // A paragraph is only judged once enough of it has arrived to judge it.
+  const resumePoint = (text) => {
+    const marked = findReasoningBoundary(text)
+
+    if (marked >= 0) return marked
+
+    const start = findAnswerStart(text)
+
+    return start >= 0 && text.length - start >= REASONING_RESUME_MIN_CHARS
+      ? start
+      : -1
+  }
+
+  return {
+    push(content) {
+      if (mode === 'pass') return trimLeading(content)
+
+      pending += content
+
+      if (mode === 'head') {
+        if (couldBeReasoningHead(pending)) return ''
+        if (!looksLikeReasoningHead(pending)) return release()
+
+        mode = 'drop'
+        suppressed = true
+      }
+
+      const start = resumePoint(pending)
+
+      if (start < 0) return ''
+
+      pending = pending.slice(start)
+
+      return release()
+    },
+
+    flush() {
+      const text = pending
+      const dropping = mode === 'drop'
+
+      pending = ''
+      mode = 'pass'
+
+      if (!text) return ''
+      if (!dropping && !looksLikeReasoningHead(text)) return trimLeading(text)
+
+      suppressed = true
+
+      return trimLeading(stripReasoning(text))
+    },
+
+    get suppressed() {
+      return suppressed
+    }
+  }
+}
 
 const createCitationFilter = (sourceCount) => {
   let pending = ''
@@ -50,6 +151,7 @@ const createCitationFilter = (sourceCount) => {
 }
 
 export const createAnswerFilter = (sourceCount) => {
+  const reasoning = createReasoningGate()
   const citations = createCitationFilter(sourceCount)
 
   let head = ''
@@ -79,20 +181,31 @@ export const createAnswerFilter = (sourceCount) => {
     return false
   }
 
+  // Runs on text the reasoning gate has already cleared, so the sentinel is
+  // still measured against the first characters of the real answer.
+  const accept = (content) => {
+    if (refused) return ''
+
+    if (decided) return citations.push(content)
+
+    head += content
+
+    if (!decide(false) || refused) return ''
+
+    return citations.push(head)
+  }
+
   return {
     push(content) {
-      if (refused) return ''
+      const visible = reasoning.push(content)
 
-      if (decided) return citations.push(content)
-
-      head += content
-
-      if (!decide(false) || refused) return ''
-
-      return citations.push(head)
+      return visible ? accept(visible) : ''
     },
 
     flush() {
+      const tail = reasoning.flush()
+      const emitted = tail ? accept(tail) : ''
+
       if (refused) return ''
 
       if (!decided) {
@@ -100,14 +213,18 @@ export const createAnswerFilter = (sourceCount) => {
 
         if (refused) return ''
 
-        return citations.push(head) + citations.flush()
+        return emitted + citations.push(head) + citations.flush()
       }
 
-      return citations.flush()
+      return emitted + citations.flush()
     },
 
     get refused() {
       return refused
+    },
+
+    get suppressedReasoning() {
+      return reasoning.suppressed
     },
 
     get droppedCitations() {

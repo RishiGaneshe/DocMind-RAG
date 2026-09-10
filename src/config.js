@@ -83,7 +83,15 @@ export const llmConfig = {
   maxTokens: num(process.env.LLM_MAX_TOKENS, 2048),
   requestTimeoutMs: num(process.env.LLM_TIMEOUT_MS, 120000),
   maxRetries: num(process.env.LLM_MAX_RETRIES, 4),
-  maxHistoryTurns: num(process.env.LLM_MAX_HISTORY_TURNS, 6)
+  maxHistoryTurns: num(process.env.LLM_MAX_HISTORY_TURNS, 6),
+
+  // Reasoning models leak their deliberation into the answer unless told to
+  // keep it internal. `disableThinking` sends the NIM chat-template toggle
+  // (dropped automatically if the provider rejects it); `noThinkDirective` is
+  // the in-prompt lever some Nemotron builds use instead — set it to
+  // `/no_think` if deliberation still comes through.
+  disableThinking: bool(process.env.LLM_DISABLE_THINKING, true),
+  noThinkDirective: process.env.LLM_NO_THINK_DIRECTIVE || ''
 }
 
 export const chunkingConfig = {

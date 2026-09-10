@@ -1,7 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { createAnswerFilter } from '../rag/answerStream.js'
-import { validateCitations, isNoAnswer } from '../services/llmService.js'
+import {
+  validateCitations,
+  isNoAnswer,
+  stripReasoning
+} from '../services/llmService.js'
 
 /** Feeds deltas through a filter and returns everything it emitted. */
 const run = (deltas, sourceCount = 3) => {
@@ -129,5 +133,181 @@ describe('isNoAnswer', () => {
 
   it('does not match an empty completion', () => {
     assert.equal(isNoAnswer(''), false)
+  })
+})
+
+describe('createAnswerFilter reasoning suppression', () => {
+  it('releases an ordinary answer on the first delta', () => {
+    const filter = createAnswerFilter(3)
+
+    assert.equal(
+      filter.push('Employees are entitled to 18 days of annual leave.'),
+      'Employees are entitled to 18 days of annual leave.'
+    )
+    assert.equal(filter.suppressedReasoning, false)
+  })
+
+  it('drops a thinking preamble and keeps the answer', () => {
+    const { out, filter } = run([
+      "Here's a thinking process:\n\n",
+      '1. **Analyze User Input:** The user is asking about leave policies, ',
+      'so I need to check the notes.\n\n',
+      'Employees are entitled to 18 days of annual leave.'
+    ])
+
+    assert.equal(out, 'Employees are entitled to 18 days of annual leave.')
+    assert.equal(filter.suppressedReasoning, true)
+  })
+
+  it('drops a <think> block split across deltas and streams the rest', () => {
+    const { out, filter } = run([
+      '<th',
+      'ink>The user wants the leave policy. Let me check.',
+      '</think>',
+      '\n\nEmployees get 18 days.'
+    ])
+
+    assert.equal(out, 'Employees get 18 days.')
+    assert.equal(filter.suppressedReasoning, true)
+  })
+
+  it('resumes streaming at an explicit answer marker', () => {
+    const filter = createAnswerFilter(3)
+
+    assert.equal(filter.push("Here's a thinking process:\n1. Check notes."), '')
+    assert.equal(filter.push('\n\n**Answer:** '), '')
+    assert.equal(filter.push('Employees get 18 days.'), 'Employees get 18 days.')
+    assert.equal(filter.flush(), '')
+  })
+
+  it('still catches the refusal sentinel behind a think block', () => {
+    const { out, filter } = run(['<think>Nothing relevant.</think>', 'NOT_IN_CONTEXT'])
+
+    assert.equal(out, '')
+    assert.equal(filter.refused, true)
+  })
+
+  it('keeps a one-paragraph reply that only looks like deliberation', () => {
+    const text = 'The user is asking party is notified within 24 hours.'
+
+    assert.equal(run([text]).out, text)
+  })
+
+  it('does not hold back a numbered answer for long', () => {
+    const { out } = run(['1. Submit the form.\n2. Await approval.'])
+
+    assert.equal(out, '1. Submit the form.\n2. Await approval.')
+  })
+
+  it('resumes streaming once a numbered plan gives way to the answer', () => {
+    const answer =
+      'Employees receive 18 days of annual leave per calendar year.'
+
+    const leaked = [
+      "Here's a thinking process:",
+      '',
+      '1. **Analyze User Input:** the user is asking about leave.',
+      '',
+      '2. **Scan the notes:** note [3] covers annual leave.',
+      '',
+      '3. **Draft the answer:** combine both notes.',
+      '',
+      answer
+    ].join('\n')
+
+    const filter = createAnswerFilter(6)
+
+    let out = ''
+    let streamedBeforeFlush = false
+
+    // Six-character deltas, roughly the size of real tokens.
+    for (const delta of leaked.match(/.{1,6}/gs)) {
+      const emitted = filter.push(delta)
+
+      if (emitted) streamedBeforeFlush = true
+
+      out += emitted
+    }
+
+    out += filter.flush()
+
+    assert.equal(out, answer)
+    assert.equal(streamedBeforeFlush, true)
+    assert.equal(filter.suppressedReasoning, true)
+  })
+})
+
+describe('stripReasoning', () => {
+  it('leaves an ordinary answer untouched', () => {
+    const text = 'Audit logs are retained for 90 days.'
+
+    assert.equal(stripReasoning(text), text)
+  })
+
+  it('removes a closed think block', () => {
+    assert.equal(
+      stripReasoning('<think>Let me check the notes.</think>\n\n18 days.'),
+      '18 days.'
+    )
+  })
+
+  it('removes deliberation that ends at an unopened closing tag', () => {
+    assert.equal(
+      stripReasoning('The user is asking about leave.</think>18 days.'),
+      '18 days.'
+    )
+  })
+
+  it('cuts at the last answer marker', () => {
+    const raw = [
+      "Here's a thinking process:",
+      '1. The user wants the leave policy.',
+      '',
+      'Final answer: Employees get 18 days.'
+    ].join('\n')
+
+    assert.equal(stripReasoning(raw), 'Employees get 18 days.')
+  })
+
+  it('drops leading deliberation when nothing marks the answer', () => {
+    const raw = [
+      "Here's a thinking process:",
+      '',
+      '1. **Analyze User Input:** the user is asking about leave.',
+      '- I need to combine the notes.',
+      '',
+      'Employees are entitled to 18 days of annual leave.'
+    ].join('\n')
+
+    assert.equal(
+      stripReasoning(raw),
+      'Employees are entitled to 18 days of annual leave.'
+    )
+  })
+
+  it('follows a numbered plan past the step that names no meta term', () => {
+    const raw = [
+      "Here's a thinking process:",
+      '',
+      '1. **Analyze User Input:** the user is asking about leave.',
+      '',
+      '2. **Scan:** annual leave is 18 days.',
+      '',
+      '3. **Draft:** combine into one reply.',
+      '',
+      'Employees receive 18 days of annual leave.'
+    ].join('\n')
+
+    assert.equal(stripReasoning(raw), 'Employees receive 18 days of annual leave.')
+  })
+
+  it('keeps the closing paragraph rather than returning nothing', () => {
+    const raw = "Here's a thinking process:\n\nLet me think about it."
+
+    assert.equal(stripReasoning(raw), 'Let me think about it.')
+  })
+
+  it('returns an empty string for a reply that is only a think block', () => {
+    assert.equal(stripReasoning('<think>All internal.</think>'), '')
   })
 })

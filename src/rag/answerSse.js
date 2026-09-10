@@ -136,6 +136,7 @@ export const streamAnswer = async ({
       `${logLabel}: streamed ${result.chunksUsed} chunks, ` +
         `stage=${result.retrieval?.stage}` +
         `${upstreamDone ? '' : ', upstream ended without [DONE]'}` +
+        `${filter.suppressedReasoning ? ', reasoning suppressed' : ''}` +
         `${filter.refused ? ', model refused' : ''}` +
         `${clientClosed ? ', client aborted' : ''}`
     )
