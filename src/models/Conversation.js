@@ -1,16 +1,7 @@
 import { DataTypes } from 'sequelize'
 import { sequelize } from '../services/db.js'
 
-/**
- * A conversation groups related turns together.
- *
- * Dashboard queries without history create single-turn conversations. Widget
- * sessions with a `sessionId` accumulate turns into the same conversation so
- * the thread can be reviewed as a unit.
- *
- * `turnCount` is denormalized so the listing endpoint does not need a COUNT
- * per row. It is bumped by `conversationService.recordTurn`.
- */
+// Conversation model grouping related turns
 export const Conversation = sequelize.define(
   'Conversation',
   {

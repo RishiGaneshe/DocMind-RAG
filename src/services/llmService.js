@@ -14,12 +14,6 @@ const requireApiKey = () => {
   return config.nvidiaAiKey
 }
 
-/**
- * The contract is stated as rules plus one worked example and one
- * counter-example. Smaller instruct models reproduce a demonstrated format far
- * more reliably than a described one. Numbered sources remain private working
- * notes for the model; the user-facing reply must not mention them.
- */
 const SYSTEM_PROMPT = `You are DocMind, a knowledgeable, professional assistant. You answer the user's question directly, as if you already know the relevant information. The numbered sources below are private working notes for you — never describe them, never name them, and never explain how you used them.
 
 RULES
@@ -42,11 +36,6 @@ According to Reference Document 3, the leave policy states that employees are en
 
 The bad answer talks about documents and retrieval. The good answer is the fact, spoken directly to the user.`
 
-/**
- * Chunks may arrive as plain strings or as `{ text, label }`, where the label
- * is a breadcrumb such as `report.pdf › page 4 › Revenue`. Labelling the source
- * header is what lets the model cite a location rather than just a number.
- */
 const normalizeChunk = (chunk) =>
   typeof chunk === 'string' ? { text: chunk, label: null } : chunk
 
@@ -67,10 +56,6 @@ ${buildContextBlock(contextChunks)}
 QUESTION
 ${query}`
 
-/**
- * Only plain user/assistant string turns survive, so a malformed or hostile
- * client payload cannot smuggle in a second system prompt.
- */
 const buildHistoryMessages = (history) => {
   if (!Array.isArray(history)) return []
 
@@ -208,8 +193,9 @@ export const generateAnswerStream = async (query, contextChunks, options = {}) =
 
     try {
       const response = await postCompletion(body, signal)
+      clear() // Clear the timeout since TTFB is reached; let the stream flow.
 
-      return { stream: response.body, cleanup: clear }
+      return { stream: response.body, cleanup: () => {} }
     } catch (error) {
       clear()
 
@@ -226,13 +212,6 @@ export const generateAnswerStream = async (query, contextChunks, options = {}) =
   throw lastError
 }
 
-/**
- * A single short completion with no answer contract attached, for internal
- * rewrites where the grounded-answer system prompt would be actively harmful.
- *
- * Deliberately unretried: every caller has a usable fallback, and spending two
- * extra backoffs on an optimisation would cost more than skipping it.
- */
 export const completeText = async (
   messages,
   { maxTokens = 128, temperature = 0 } = {}
@@ -260,31 +239,19 @@ export const completeText = async (
   }
 }
 
-/**
- * Both sides of the sentinel comparison go through the same normalisation. The
- * strip set includes `_`, which the sentinel itself contains, so comparing a
- * stripped answer against the raw sentinel would never match.
- */
-export const normalizeForSentinel = (value) =>
-  value.replace(/[`*_."'\s]/g, '').toUpperCase()
+export const normalizeForSentinel = (value) => {
+  if (typeof value !== 'string') return ''
+  return value.replace(/[`*_."'\s]/g, '').toUpperCase()
+}
 
 export const SENTINEL_NORMALIZED = normalizeForSentinel(NO_ANSWER_SENTINEL)
 
-/**
- * True when the model chose the refusal path. Matched tolerantly because the
- * sentinel comes back wrapped in stray punctuation or markdown emphasis often
- * enough that an exact comparison leaks `NOT_IN_CONTEXT` to the user.
- */
-export const isNoAnswer = (answer) =>
-  normalizeForSentinel(answer).startsWith(SENTINEL_NORMALIZED)
+export const isNoAnswer = (answer) => {
+  if (typeof answer !== 'string' || !answer.trim()) return false
+  return normalizeForSentinel(answer).startsWith(SENTINEL_NORMALIZED)
+}
 
 
-/**
- * Strips bracketed citation markers from the user-facing answer so a model that
- * still emits `[1]` cannot leak retrieval numbering. In-range markers are
- * recorded on `citedSources` for the dashboard; out-of-range ones are counted
- * on `droppedCitations`.
- */
 export const validateCitations = (answer, sourceCount) => {
   const cited = new Set()
 

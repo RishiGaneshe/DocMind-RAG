@@ -44,11 +44,6 @@ const lexicalLane = async (tenantId, query, documentIds) => {
   }
 }
 
-/**
- * Text comes from Postgres where the chunk store has it and from Pinecone
- * metadata where it does not. That fallback is what lets vectors written before
- * the chunk store existed keep answering without being re-embedded.
- */
 const hydrate = async (tenantId, ids) => {
   const fromPostgres = await hydrateChunks(tenantId, ids)
   const missing = ids.filter((id) => !fromPostgres.has(id))
@@ -103,11 +98,6 @@ const hydrate = async (tenantId, ids) => {
   return chunks
 }
 
-/**
- * Reranking the same query over the same candidate set is deterministic, so the
- * result is cached on (model, query, candidate ids). Repeat and near-repeat
- * questions skip a 300-600ms cross-encoder call.
- */
 const rerankWithCache = async (query, candidates) => {
   const key = rerankCacheKey(
     RERANK_MODEL,
@@ -134,11 +124,6 @@ const rerankWithCache = async (query, candidates) => {
   return ranked
 }
 
-/**
- * Applies the relevance gates. Two floors are used together: an absolute one,
- * because a low score is low regardless of its neighbours, and a relative one,
- * because a run of mediocre chunks below a strong hit is usually padding.
- */
 const selectFinalists = (ranked, deduped, finalTopK) => {
   if (ranked) {
     const best = ranked[0]?.score ?? 0
@@ -153,39 +138,34 @@ const selectFinalists = (ranked, deduped, finalTopK) => {
       .map((entry) => ({ ...deduped[entry.index], rerankScore: entry.score }))
   }
 
-  // Reranker unavailable. Fusion order is kept and the only comparable signal
-  // left is the dense score, so gate on that relative to the best hit.
-  const best = deduped[0]?.cosineScore ?? 0
+  const bestCosine = deduped.reduce(
+    (max, c) => (c.cosineScore !== null && c.cosineScore > max ? c.cosineScore : max),
+    0
+  )
+  const cosineFloor = Math.max(
+    retrievalConfig.minCosineScore,
+    bestCosine * retrievalConfig.relativeScoreFloor
+  )
 
   return deduped
     .filter(
       (candidate) =>
-        candidate.cosineScore === null ||
-        candidate.cosineScore >= best * retrievalConfig.relativeScoreFloor
+        candidate.cosineScore === null || candidate.cosineScore >= cosineFloor
     )
     .slice(0, finalTopK)
     .map((candidate) => ({ ...candidate, rerankScore: null }))
 }
 
-/**
- * Two-stage retrieval: wide recall across a dense and a lexical lane, fused by
- * RRF, then narrowed by a cross-encoder.
- *
- * The width is the point. Measured against this corpus, four of the six chunks
- * the reranker eventually chose sat at ANN ranks 9, 13 and 29 — invisible to a
- * topK of 5. Recall is cheap here because only ids cross the wire; the text is
- * hydrated locally.
- */
 export const retrieve = async (tenantId, query, options = {}) => {
   const finalTopK = options.finalTopK ?? retrievalConfig.finalTopK
   const { documentIds } = options
 
   const startedAt = Date.now()
 
-  const queryEmbedding = await generateEmbedding(query, 'query')
-
   const [dense, lexical] = await Promise.all([
-    denseLane(tenantId, queryEmbedding, documentIds),
+    generateEmbedding(query, 'query').then((emb) =>
+      denseLane(tenantId, emb, documentIds)
+    ),
     lexicalLane(tenantId, query, documentIds)
   ])
 

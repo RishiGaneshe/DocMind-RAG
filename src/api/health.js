@@ -16,23 +16,10 @@ const checkPostgres = async () => {
   }
 }
 
-/**
- * Liveness. Answers while the process is serving requests at all, so an
- * orchestrator does not restart a container that is merely waiting on a
- * dependency to come back.
- */
 router.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
 
-/**
- * Readiness. Postgres and Pinecone are both required for the query path, so
- * either being down means not ready. Redis is reported but not required:
- * caching is best-effort by design.
- *
- * Note that token blacklisting also lives in Redis and currently fails open,
- * so a Redis outage lets already-revoked access tokens work until they expire.
- */
 router.get('/ready', async (req, res) => {
   const postgres = await checkPostgres()
   const redis = getRedisSafe() ? 'up' : 'down'

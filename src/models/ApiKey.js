@@ -1,19 +1,7 @@
 import { DataTypes } from 'sequelize'
 import { sequelize } from '../services/db.js'
 
-/**
- * An API key belonging to a workspace.
- *
- * The plaintext key exists exactly once, in the response to the request that
- * created it. What lives here is `keyHash` — sha256 of the full key — plus the
- * prefix and last four characters, which are enough to identify a key in a list
- * and useless for authenticating.
- *
- * `rateLimitPerMinute` and `dailyQuota` are nullable rather than defaulted in the
- * column, so a key that has never been tuned follows the deployment-wide default
- * in `config.js` and picks up changes to it, instead of being frozen at whatever
- * the default happened to be on the day it was minted.
- */
+// API key model for workspace authentication
 export const ApiKey = sequelize.define(
   'ApiKey',
   {
@@ -93,8 +81,6 @@ export const ApiKey = sequelize.define(
       allowNull: false,
       defaultValue: 0
     },
-    // Set when a key is rotated: the old secret keeps working until this passes,
-    // so a widget can be redeployed without a window of broken chat.
     expiresAt: {
       type: DataTypes.DATE,
       allowNull: true
@@ -118,10 +104,6 @@ export const ApiKey = sequelize.define(
   }
 )
 
-/**
- * The dashboard shape. Deliberately not `toJSON`: an accidental
- * `res.json(apiKey)` should be a visible mistake, not a silent hash leak.
- */
 ApiKey.prototype.toSafeJSON = function () {
   const values = this.get()
 

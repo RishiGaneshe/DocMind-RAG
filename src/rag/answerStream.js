@@ -4,13 +4,6 @@ import {
   normalizeForSentinel
 } from '../services/llmService.js'
 
-/**
- * Streams text through while stripping citation markers, holding back a
- * trailing partial marker so a `[` at the end of one delta and `12]` at the
- * start of the next are judged as one token rather than emitted and then
- * contradicted. Every `[n]` is removed from the user-facing stream; only
- * out-of-range markers increment `droppedCount`.
- */
 const createCitationFilter = (sourceCount) => {
   let pending = ''
   let dropped = 0
@@ -31,7 +24,7 @@ const createCitationFilter = (sourceCount) => {
     push(content) {
       pending += content
 
-      const held = pending.match(/\[\d{0,3}$/)
+      const held = pending.match(/\s*\[\d{0,3}$/)
       const safeLength = held ? pending.length - held[0].length : pending.length
 
       const out = scrub(pending.slice(0, safeLength))
@@ -55,16 +48,6 @@ const createCitationFilter = (sourceCount) => {
   }
 }
 
-/**
- * Applies the answer contract to a token stream.
- *
- * The refusal sentinel can only be recognised from the first few tokens, so the
- * head of the stream is held back until it either matches the sentinel or has
- * clearly diverged from it. That hold-back is at most a couple of dozen
- * characters, which is imperceptible next to the first-token latency, and it is
- * the difference between the user seeing an honest miss and seeing the raw
- * `NOT_IN_CONTEXT` marker.
- */
 export const createAnswerFilter = (sourceCount) => {
   const citations = createCitationFilter(sourceCount)
 

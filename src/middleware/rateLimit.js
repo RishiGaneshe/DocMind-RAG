@@ -1,20 +1,7 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import { rateLimitConfig } from '../config.js'
 
-/**
- * Buckets by authenticated user first and IP second.
- *
- * Keying on IP alone punishes every user behind one office NAT for the busiest
- * of them, and keying on the user alone leaves unauthenticated routes — where
- * the abuse actually starts — with no bucket at all. `ipKeyGenerator` is used
- * rather than raw `req.ip` because it normalises IPv6 to a /56 prefix, so a
- * client with a whole address range cannot mint a fresh bucket per request.
- *
- * The field is `userId`, not `id`: that is what `authenticate` puts on `req.user`
- * from the JWT payload. Reading `id` here silently sent every authenticated
- * request down the IP branch — the exact NAT problem this comment claims to
- * avoid.
- */
+// Key rate limits by authenticated userId or IP
 const keyFor = (req) =>
   req.user?.userId ? `u:${req.user.userId}` : `ip:${ipKeyGenerator(req.ip)}`
 
@@ -25,8 +12,6 @@ const build = (max, message) =>
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     keyGenerator: keyFor,
-    // Failed logins and rejected uploads are exactly what a limiter is for, so
-    // they stay counted; only the limiter's own 429s are skipped.
     handler: (req, res) => {
       console.warn(`[RATE LIMIT] ${keyFor(req)} on ${req.method} ${req.originalUrl}`)
 
@@ -39,11 +24,7 @@ const build = (max, message) =>
     }
   })
 
-/**
- * A pass-through when limiting is disabled, so the router wiring does not need
- * to branch and a misconfiguration cannot silently drop the limiter from one
- * route while keeping it on another.
- */
+// Pass-through when rate limiting is disabled
 const optional = (middleware) =>
   rateLimitConfig.enabled ? middleware : (req, res, next) => next()
 

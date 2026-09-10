@@ -16,10 +16,6 @@ import {
 import { Document } from '../models/Document.js'
 import { retrievalConfig, cacheConfig, NO_ANSWER_MESSAGE } from '../config.js'
 
-/**
- * Filenames are resolved once per query for the handful of documents actually
- * involved, so a citation can read `report.pdf › page 4` instead of a UUID.
- */
 const loadFilenames = async (tenantId, documentIds) => {
   if (documentIds.length === 0) return new Map()
 
@@ -71,9 +67,6 @@ export const queryRAG = async (tenantId, userQuery, options = {}) => {
   const topK = options.topK ?? retrievalConfig.finalTopK
   const history = options.history
 
-  // Answers are cached against the tenant's corpus version, so an upload or a
-  // delete invalidates everything stale without a key scan. Conversational
-  // turns are never cached: the same words mean different things mid-thread.
   const cacheable = cacheConfig.answerEnabled && !history?.length
   const cacheKey = cacheable
     ? answerCacheKey(
@@ -91,8 +84,6 @@ export const queryRAG = async (tenantId, userQuery, options = {}) => {
     if (cached) return { ...cached, cached: true }
   }
 
-  // Retrieval runs against a standalone form of the question; generation still
-  // sees the words the user actually typed, with the history alongside it.
   const { query: searchQuery, rewritten } = await rewriteQuery(userQuery, history)
 
   const { chunks, stage, stats } = await retrieve(tenantId, searchQuery, {
@@ -132,9 +123,6 @@ const generate = async (
 
   const raw = await generateAnswer(userQuery, contextChunks, { history })
 
-  // The model was told to emit a sentinel when the context is insufficient.
-  // Honouring it here means a confident-sounding fabrication is replaced by an
-  // honest miss rather than shown to the user.
   if (isNoAnswer(raw)) {
     return {
       answer: NO_ANSWER_MESSAGE,
@@ -177,11 +165,6 @@ const generate = async (
   return result
 }
 
-/**
- * Streaming variant. Citation validation and sentinel handling cannot happen
- * before the first token is sent, so `sourceCount` is returned and the SSE
- * layer applies both as the stream drains.
- */
 export const queryRAGStream = async (tenantId, userQuery, options = {}) => {
   const topK = options.topK ?? retrievalConfig.finalTopK
   const history = options.history

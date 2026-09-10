@@ -123,6 +123,13 @@ describe('sanitizeRewrite', () => {
       'What is the retention period for debug logs?'
     )
   })
+
+  test('accepts a valid pronoun resolution when original consists of common pronouns/stopwords', () => {
+    assert.equal(
+      sanitizeRewrite('Can administrators delete user accounts?', 'can they do that?'),
+      'Can administrators delete user accounts?'
+    )
+  })
 })
 
 describe('rewriteQuery', () => {

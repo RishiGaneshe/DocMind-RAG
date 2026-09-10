@@ -6,11 +6,6 @@ import {
 } from '../services/cacheService.js'
 import { cacheConfig, llmConfig } from '../config.js'
 
-/**
- * Openers that only make sense as a continuation, and back-references that need
- * an antecedent. `there` is deliberately absent: `is there a retention policy`
- * is a perfectly standalone question and would trip the gate on every turn.
- */
 const FOLLOW_UP_OPENER =
   /^(?:and|also|but|so|then|what about|how about|what else|anything else|ok|okay)\b/i
 
@@ -19,14 +14,6 @@ const BACK_REFERENCE =
 
 const SHORT_QUERY_WORDS = 5
 
-/**
- * Whether the query looks like it depends on the conversation.
- *
- * A gate rather than an unconditional rewrite: rewriting every question would
- * add an LLM round trip to every request, and a self-contained question gains
- * nothing from it. Cheap to be wrong in either direction — a missed rewrite
- * degrades to the current behaviour and a needless one returns the query intact.
- */
 export const needsRewrite = (query, history) => {
   if (!Array.isArray(history) || history.length === 0) return false
 
@@ -61,15 +48,6 @@ const buildTranscript = (history) =>
     .map((turn) => `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content}`)
     .join('\n')
 
-/**
- * Accepts a rewrite only if it still looks like the same question asked plainly.
- *
- * A small instruct model will occasionally answer the question instead of
- * rewriting it, or wrap the rewrite in `Rewrite:` or quotes. The wrappers are
- * cheap to strip; anything that grew into prose is rejected outright, because
- * retrieving against a hallucinated answer is worse than retrieving against a
- * vague question.
- */
 export const sanitizeRewrite = (raw, original) => {
   if (typeof raw !== 'string') return original
 
@@ -91,16 +69,20 @@ export const sanitizeRewrite = (raw, original) => {
 
   if (tooLong) return original
 
-  // A rewrite that has dropped every word of the original is not a rewrite.
-  const words = new Set(
-    original
-      .toLowerCase()
-      .split(/\W+/)
-      .filter((word) => word.length > 3)
-  )
+  const COMMON_PRONOUNS_AND_STOPWORDS = new Set([
+    'they', 'them', 'their', 'theirs', 'this', 'that', 'these', 'those',
+    'what', 'which', 'where', 'when', 'who', 'whom', 'whose', 'why', 'how',
+    'does', 'done', 'doing', 'have', 'been', 'would', 'could', 'should',
+    'about', 'there', 'here', 'some', 'more', 'also', 'with', 'from'
+  ])
 
-  if (words.size > 0) {
-    const kept = [...words].filter((word) => cleaned.toLowerCase().includes(word))
+  const meaningfulWords = original
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((word) => word.length > 3 && !COMMON_PRONOUNS_AND_STOPWORDS.has(word))
+
+  if (meaningfulWords.length > 0) {
+    const kept = meaningfulWords.filter((word) => cleaned.toLowerCase().includes(word))
 
     if (kept.length === 0) return original
   }
@@ -108,18 +90,13 @@ export const sanitizeRewrite = (raw, original) => {
   return cleaned
 }
 
-/**
- * Returns a standalone form of `query`, or `query` itself when no rewrite is
- * needed or the attempt fails. Never throws: a broken rewrite must not be able
- * to fail a question that would otherwise have been answered.
- */
 export const rewriteQuery = async (query, history) => {
   if (!needsRewrite(query, history)) return { query, rewritten: false }
 
   const transcript = buildTranscript(history)
   const key = rewriteCacheKey(LLM_MODEL, transcript, query)
 
-  if (cacheConfig.rerankEnabled) {
+  if (cacheConfig.rewriteEnabled) {
     const cached = await cacheGetJson(key)
 
     if (typeof cached === 'string') {
@@ -141,8 +118,8 @@ export const rewriteQuery = async (query, history) => {
 
     const rewritten = sanitizeRewrite(raw, query)
 
-    if (cacheConfig.rerankEnabled) {
-      await cacheSetJson(key, rewritten, cacheConfig.rerankTtlSeconds)
+    if (cacheConfig.rewriteEnabled) {
+      await cacheSetJson(key, rewritten, cacheConfig.rewriteTtlSeconds)
     }
 
     if (rewritten !== query) {

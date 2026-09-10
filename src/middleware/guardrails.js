@@ -1,19 +1,4 @@
-/**
- * A cheap deterministic guard on the question, ahead of anything that costs
- * money.
- *
- * This is not a content-safety classifier and does not try to be. It rejects the
- * narrow class of input whose only purpose is to break the grounding contract —
- * instruction overrides, requests for the system prompt, and forged source
- * markers — because those are the ones that turn a cited answer into an
- * uncited one. Judging whether a question is *appropriate* is a different
- * problem needing a different model, and guessing at it here would reject
- * legitimate questions about documents that happen to discuss difficult topics.
- *
- * Patterns are phrase-level on purpose. A bare `ignore` or `system` appears in
- * ordinary questions about ordinary documents; `ignore all previous
- * instructions` does not.
- */
+// Guardrails to detect prompt injections and invalid characters in queries
 
 const OVERRIDE_PATTERNS = [
   /\b(?:ignore|disregard|forget|override|bypass)\b[^.?!]{0,40}\b(?:previous|prior|earlier|above|all|any|your|the)\b[^.?!]{0,20}\b(?:instruction|instructions|prompt|prompts|rule|rules|direction|directions|context|constraint|constraints|guideline|guidelines)\b/i,
@@ -29,23 +14,14 @@ const FORGED_SCAFFOLD_PATTERNS = [
   /^\s*(?:system|assistant)\s*:/im,
   /\bNOT_IN_CONTEXT\b/,
   /^\s*SOURCES\s*$/im,
-  /\[\s*\d+\s*\]\s*\n/
+  /^\s*\[\s*\d{1,3}\s*\]\s*(?:\([^)\n]+\))?\s*$/m
 ]
 
-// C0 and C1 control characters, tab and newline excepted. Nothing legitimate
-// types these; a prompt smuggled through them would not be visible in a log.
 const CONTROL_CHARACTERS = new RegExp('[\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f]')
-
-// Bidirectional overrides can make displayed text read differently from what is
-// actually sent, so a query carrying them cannot be reviewed by a human.
 const BIDI_OVERRIDES = new RegExp('[\\u202a-\\u202e\\u2066-\\u2069]')
-
 const REPEATED_CHARACTER = /(.)\1{60,}/
 
-/**
- * Returns `null` when the query is acceptable, or `{ reason, code }` describing
- * why it was refused. Pure, so the rule set can be tested without an HTTP layer.
- */
+// Inspect query for prompt injection or invalid characters
 export const inspectQuery = (query) => {
   if (typeof query !== 'string') return null
 
@@ -97,9 +73,6 @@ export const promptGuardrails = (req, res, next) => {
 
   if (!verdict) return next()
 
-  // `userId`, not `id` — that is the field `authenticate` sets. Reading `id`
-  // logged every rejection as `anonymous`, which made the one signal this line
-  // exists to provide useless.
   console.warn(
     `[GUARDRAILS] rejected a query from ${req.user?.userId ?? req.apiKey?.keyPrefix ?? 'anonymous'}: ${verdict.code}`
   )

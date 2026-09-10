@@ -13,14 +13,6 @@ router.use(authenticate, requireTenant)
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/**
- * List conversations for this workspace, newest first.
- *
- * Query params:
- *   - limit  (default 50, max 100)
- *   - offset (default 0)
- *   - mine   (if "true", filters to the current user's conversations only)
- */
 router.get('/', async (req, res) => {
   try {
     const { tenantId } = req.params
@@ -51,9 +43,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-/**
- * Get a single conversation with all its turns.
- */
 router.get('/:conversationId', async (req, res) => {
   try {
     const { tenantId, conversationId } = req.params

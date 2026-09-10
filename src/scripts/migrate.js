@@ -1,14 +1,5 @@
 #!/usr/bin/env node
-/**
- * Migration CLI.
- *
- *   npm run migrate            apply every pending migration
- *   npm run migrate:status     list applied and pending migrations
- *   npm run migrate:undo       revert the most recent migration
- *
- * Kept separate from the server so a deploy can migrate before starting any
- * instance, which is the only ordering that works when more than one is running.
- */
+// Migration CLI: npm run migrate | migrate:status | migrate:undo
 import 'dotenv/config'
 import { sequelize } from '../services/db.js'
 import { umzug, runMigrations } from '../services/migrator.js'

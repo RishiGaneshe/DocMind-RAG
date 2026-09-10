@@ -1,16 +1,5 @@
-/**
- * Copies chunk text out of Pinecone metadata into the `document_chunks` table.
- *
- * Nothing is re-embedded and no vector is modified: this reads metadata that is
- * already stored and writes it to Postgres, which is what lets the lexical
- * retrieval lane and local hydration cover documents uploaded before the chunk
- * store existed.
- *
- * Idempotent — rows already present are skipped, so it is safe to re-run after
- * an interruption.
- *
- *   node src/scripts/backfillChunks.js [--tenant <uuid>] [--dry-run]
- */
+// Backfill chunk text from Pinecone metadata into document_chunks table
+// Usage: node src/scripts/backfillChunks.js [--tenant <uuid>] [--dry-run]
 import 'dotenv/config'
 
 import { sequelize } from '../services/db.js'
@@ -24,8 +13,6 @@ import { saveChunks } from '../rag/chunkStore.js'
 const FETCH_BATCH_SIZE = 100
 const LIST_PAGE_SIZE = 100
 
-// Rows written by this script came from the original 500-word fixed-window
-// splitter. Tagging them keeps a mixed corpus legible.
 const LEGACY_CHUNKING_VERSION = 1
 
 const parseArgs = (argv) => {
@@ -87,8 +74,6 @@ const backfillTenant = async (tenant, { dryRun }) => {
 
   if (pending.length === 0) return { written: 0, skipped: present.size, orphaned: 0, textless: 0 }
 
-  // A chunk row references its document, so a vector whose document has been
-  // deleted from Postgres cannot be written and is reported instead.
   const documents = await Document.findAll({
     where: { tenantId: tenant.id },
     attributes: ['id'],

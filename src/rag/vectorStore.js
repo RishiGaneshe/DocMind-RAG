@@ -30,8 +30,6 @@ export const initPinecone = async () => {
 
     await pc.createIndex({
       name: indexName,
-      // Derived from the embedding model rather than hardcoded. A literal 768
-      // here silently produced an index no upsert could ever write to.
       dimension: embeddingConfig.dimension,
       metric: 'cosine',
       spec: {
@@ -43,8 +41,6 @@ export const initPinecone = async () => {
       waitUntilReady: true
     })
   } else if (existing.dimension !== embeddingConfig.dimension) {
-    // Failing loudly here is the only way to catch a model/index mismatch
-    // before it turns into a wall of rejected upserts.
     throw new Error(
       `Pinecone index "${indexName}" has dimension ${existing.dimension} but ` +
         `${embeddingConfig.model} produces ${embeddingConfig.dimension}. ` +
@@ -60,12 +56,6 @@ export const initPinecone = async () => {
   )
 }
 
-/**
- * Upserts in batches because Pinecone caps a request at 2 MB. A 1024-dimension
- * vector serialises to roughly 20 KB of JSON, so a single request tops out
- * around a hundred records — well under the chunk count of a long PDF, which
- * would otherwise fail the whole upload at the last step.
- */
 const UPSERT_BATCH_SIZE = 100
 
 export const upsertVectors = async (tenantId, vectors) => {
@@ -80,11 +70,6 @@ export const upsertVectors = async (tenantId, vectors) => {
   }
 }
 
-/**
- * First-stage recall. Metadata is off by default: pulling chunk text back for
- * 40 candidates cost 1.6-2.8s against 0.3-0.7s for ids alone, so text is
- * hydrated from Postgres instead.
- */
 export const querySimilarity = async (
   tenantId,
   embedding,
@@ -114,7 +99,6 @@ export const fetchVectorMetadata = async (tenantId, ids) => {
   return response.records ?? {}
 }
 
-// Pinecone rejects a delete carrying more than 1000 ids.
 const DELETE_BATCH_SIZE = 1000
 
 export const deleteVectors = async (tenantId, ids) => {
@@ -129,11 +113,6 @@ export const deleteVectors = async (tenantId, ids) => {
   }
 }
 
-/**
- * Lists ids in a namespace, optionally restricted to an id prefix. Serverless
- * indexes cannot delete by metadata filter, so deleting a document means
- * listing its `<documentId>-chunk-` prefix and deleting those ids.
- */
 export const listVectorIds = async (tenantId, { prefix, paginationToken, limit } = {}) => {
   assertReady()
 

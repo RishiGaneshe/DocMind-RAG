@@ -12,15 +12,6 @@ import { authenticate } from '../middleware/authenticate.js'
 import { requireTenant } from '../middleware/requireTenant.js'
 import { publicApiConfig, API_KEY_SCOPES } from '../config.js'
 
-/**
- * Key management for the workspace owner. Mounted under
- * `/api/tenants/:tenantId/api-keys` behind the dashboard's JWT.
- *
- * `requireTenant` proves the `:tenantId` in the URL is the caller's own, and every
- * service call takes that tenant id as its first argument, so a key id belonging
- * to another workspace resolves to a 404 rather than to someone else's key.
- */
-
 const router = Router({ mergeParams: true })
 
 router.use(authenticate, requireTenant)
@@ -39,14 +30,6 @@ const failed = (res, error, context) => {
   return res.status(500).json({ success: false, error: 'Internal server error' })
 }
 
-/**
- * Mints a key.
- *
- * The plaintext is in this response and in no other. It is not recoverable, not
- * by the owner and not by an operator with database access, because only its
- * SHA-256 is stored. The response says so explicitly so a UI has something to
- * render next to the copy button.
- */
 router.post('/', async (req, res) => {
   try {
     const { apiKey, plaintext } = await createApiKey({
@@ -99,11 +82,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-/**
- * Today's spend for one key. Separate from the list endpoint because it reads
- * Redis per key, and a workspace with 25 keys should not pay 25 round trips to
- * render a table.
- */
 router.get('/:keyId/usage', async (req, res) => {
   try {
     const usage = await apiKeyUsage(req.user.tenantId, req.params.keyId)
@@ -129,13 +107,6 @@ router.patch('/:keyId', async (req, res) => {
   }
 })
 
-/**
- * Issues a replacement and puts the old key on a grace timer, so a widget can be
- * redeployed without a window in which the site's chat is broken.
- *
- * `graceHours: 0` closes the old key immediately, which is the right call for a
- * suspected leak and the wrong one for routine hygiene.
- */
 router.post('/:keyId/rotate', async (req, res) => {
   try {
     const { apiKey, plaintext, previous } = await rotateApiKey(
@@ -164,11 +135,6 @@ router.post('/:keyId/rotate', async (req, res) => {
   }
 })
 
-/**
- * Revokes. Soft, so the row survives as a record of what was issued and when it
- * was withdrawn; the cache entry is dropped so it stops working on the next
- * request rather than at the end of the TTL.
- */
 router.delete('/:keyId', async (req, res) => {
   try {
     const row = await revokeApiKey(req.user.tenantId, req.params.keyId)

@@ -1,13 +1,4 @@
-/**
- * Terminal error handler.
- *
- * A client-caused failure — an oversized body, malformed JSON — is logged as one
- * line, because a stack trace describes the framework rather than the fault and
- * a caller who can trigger one at will can otherwise fill the log with them. A
- * 5xx keeps the full stack: that one is ours.
- *
- * The response shape is unchanged in both cases.
- */
+// Terminal error handler
 export const errorHandler = (err, req, res, next) => {
   const status = err.status || err.statusCode || 500
 

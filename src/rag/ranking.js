@@ -1,14 +1,3 @@
-/**
- * Pure ranking helpers, deliberately free of any I/O or configuration import so
- * they can be unit tested without a database, a Redis, or an API key.
- */
-
-/**
- * Reciprocal Rank Fusion. Dense cosine similarity and lexical `ts_rank_cd` live
- * on incomparable scales, so the lanes are fused on rank position rather than
- * on score. `k` damps the influence of the very top positions, which is what
- * stops one confident lane from crowding the other out entirely.
- */
 export const fuseRankings = (rankings, k) => {
   const scores = new Map()
 
@@ -48,11 +37,6 @@ export const jaccard = (a, b) => {
   return intersection / (a.size + b.size - intersection)
 }
 
-/**
- * Drops candidates that substantially repeat one already kept. Chunks overlap
- * by design, so adjacent chunks share text and the final context was spending
- * several of its few slots on the same paragraph.
- */
 export const suppressDuplicates = (candidates, threshold) => {
   const kept = []
   const keptGrams = []

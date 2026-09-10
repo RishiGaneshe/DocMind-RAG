@@ -24,8 +24,6 @@ import { uploadConfig } from '../config.js'
 
 const router = Router({ mergeParams: true })
 
-// `requireTenant` already proves the URL's tenantId matches the caller's own
-// tenant, so no route below needs to load the Tenant row to validate it.
 router.use(authenticate, requireTenant)
 
 const UUID_PATTERN =
@@ -70,12 +68,6 @@ const handleUpload = (req, res, next) => {
   })
 }
 
-/**
- * The stored copy of an identical file, if there is one.
- *
- * A document still PROCESSING counts as a match so that a double-clicked upload
- * does not start the pipeline twice on the same bytes.
- */
 const findDuplicate = async (tenantId, contentHash) =>
   await Document.findOne({
     where: {
@@ -87,14 +79,6 @@ const findDuplicate = async (tenantId, contentHash) =>
     attributes: LIST_ATTRIBUTES.concat('contentHash')
   })
 
-/**
- * Accepts the file, records it, and answers 202 before any parsing happens.
- *
- * Embedding a long PDF takes longer than many proxies will hold a connection
- * open, and a client that timed out had no way to learn whether its upload had
- * actually succeeded. The work now runs on a bounded queue and the client polls
- * `GET /:id` for `status`.
- */
 router.post('/', uploadLimiter, handleUpload, async (req, res) => {
   try {
     const { tenantId } = req.params
@@ -159,9 +143,6 @@ router.post('/', uploadLimiter, handleUpload, async (req, res) => {
         status: 'PENDING'
       })
     } catch (error) {
-      // Two uploads of the same file can race past the check above and collide
-      // on the partial unique index. The loser reports the winner rather than a
-      // 500, which is what the caller wanted anyway.
       if (!isUniqueViolation(error)) throw error
 
       const existing = await findDuplicate(tenantId, contentHash)
@@ -176,8 +157,6 @@ router.post('/', uploadLimiter, handleUpload, async (req, res) => {
       })
     }
 
-    // Deliberately not awaited. The queue owns the work from here; failures are
-    // recorded on the document row, which is what the client polls.
     enqueueIngestion(doc.id, tenantId, file.originalname, file.buffer)
 
     const load = ingestionLoad()
@@ -224,11 +203,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-/**
- * Status endpoint for the 202 handshake. Returns the whole row rather than a
- * bare status string so a polling client can render progress, the page count and
- * a failure reason from one response.
- */
 router.get('/:documentId', async (req, res) => {
   try {
     const { tenantId, documentId } = req.params
@@ -263,14 +237,6 @@ router.get('/:documentId', async (req, res) => {
   }
 })
 
-/**
- * Collects every vector id belonging to a document.
- *
- * Two sources are unioned. Ids are derived arithmetically from `totalChunks`,
- * which is exact for documents this codebase wrote, and listed by prefix from
- * Pinecone, which catches documents whose chunk count was never recorded and any
- * vector left behind by a partial failure.
- */
 const collectVectorIds = async (tenantId, document) => {
   const ids = new Set()
 
@@ -300,15 +266,6 @@ const collectVectorIds = async (tenantId, document) => {
   return [...ids]
 }
 
-/**
- * Deletes a document from all three stores.
- *
- * Ordered so that a failure part-way through can only ever leave the corpus
- * smaller than the client asked for, never inconsistent: vectors first, then
- * chunk rows, then the document itself. A vector that outlives its chunk row is
- * unreachable, whereas a chunk row that outlives its vector is a lexical hit
- * that can never be reranked against anything.
- */
 router.delete('/:documentId', async (req, res) => {
   try {
     const { tenantId, documentId } = req.params
@@ -328,9 +285,6 @@ router.delete('/:documentId', async (req, res) => {
     }
 
     if (document.status === 'PENDING' || document.status === 'PROCESSING') {
-      // The queued job holds no reference to this row beyond its id, and it
-      // writes with `where: { id, tenantId }`, so deleting now would let the
-      // pipeline resurrect orphaned vectors after the row is gone.
       return res.status(409).json({
         success: false,
         error: 'This document is still being processed. Try again once it finishes.',

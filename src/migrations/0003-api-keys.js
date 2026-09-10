@@ -1,19 +1,4 @@
-/**
- * API keys and widget configuration.
- *
- * Keys live in their own table rather than as a column on `tenants` because one
- * workspace needs several of them: a public key per site the widget is embedded
- * on, plus secret keys for server-to-server work. A single column cannot be
- * rotated without downtime and cannot be revoked at all.
- *
- * Only `keyHash` is stored, never the key. `keyPrefix` and `keyLast4` exist so
- * the dashboard can name a key in a list without us retaining anything that
- * could authenticate.
- *
- * Written `IF NOT EXISTS` throughout to match the baseline's contract: applying
- * this to a database that already has the table must be a no-op.
- */
-
+// API keys and widget configuration migration
 const statements = [
   `DO $$ BEGIN
      CREATE TYPE "enum_api_keys_type" AS ENUM ('public', 'secret');

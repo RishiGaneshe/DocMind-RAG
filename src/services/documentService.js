@@ -13,17 +13,8 @@ const STANDARD_FONT_DATA_URL = path.join(
   __dirname, '..', '..', 'node_modules', 'pdfjs-dist', 'standard_fonts/'
 )
 
-// Breadcrumbs are stored in a bounded column and shown in the UI, so a runaway
-// heading is trimmed rather than allowed to fail the insert.
 const MAX_BREADCRUMB_CHARS = 700
 
-/**
- * Extracts one string per page.
- *
- * Per-page rather than one concatenated blob: a chunk that cannot say which page
- * it came from cannot be cited, and page boundaries are also the only reliable
- * place to detect a running header.
- */
 const extractPages = async (fileBuffer) => {
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(fileBuffer),
@@ -50,19 +41,10 @@ const extractPages = async (fileBuffer) => {
 
     return { pages, numPages: pdf.numPages }
   } finally {
-    // pdf.js holds the parsed document and its font data until told otherwise,
-    // which on a busy upload path is a slow memory leak.
     await pdf.destroy()
   }
 }
 
-/**
- * Content hash of the raw file, computed without parsing it.
- *
- * Exported separately so the upload route can look for an existing document
- * with the same hash before spending a PDF parse and an embedding run on a
- * file it already has.
- */
 export const hashBuffer = (fileBuffer) =>
   crypto.createHash('sha256').update(fileBuffer).digest('hex')
 

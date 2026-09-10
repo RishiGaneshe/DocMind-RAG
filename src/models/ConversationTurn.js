@@ -1,20 +1,7 @@
 import { DataTypes } from 'sequelize'
 import { sequelize } from '../services/db.js'
 
-/**
- * One question-answer exchange within a conversation.
- *
- * Every field the RAG pipeline already computes is captured here. Nothing new
- * is computed; this table writes down what `queryRAG` and `streamAnswer`
- * already return.
- *
- * `tenantId` is denormalized so tenant-scoped queries (analytics, listing,
- * knowledge promotion) never need a join through conversations.
- *
- * Future columns (`feedbackRating`, `feedbackNote`, `promotedAt`,
- * `promotedChunkId`) are nullable and unused until Phase 2; they exist now so
- * that phase needs no migration.
- */
+// Conversation turn model for recording Q&A exchanges
 export const ConversationTurn = sequelize.define(
   'ConversationTurn',
   {

@@ -15,39 +15,14 @@ import { resolveWidgetConfig, redactSources } from '../services/widgetService.js
 import { recordTurn } from '../services/conversationService.js'
 import { publicApiConfig, retrievalConfig } from '../config.js'
 
-/**
- * The public, unauthenticated chat surface. This is the only router an anonymous
- * visitor's browser ever talks to.
- *
- * Everything here is written on the assumption that the caller is hostile and
- * holds a key they lifted out of a page. The key therefore buys a workspace
- * identity and nothing else: no tenant id is accepted from the request, the
- * retrieval knobs are clamped to public ceilings regardless of what was sent,
- * and the source list is redacted on the way out.
- *
- * It carries its own CORS and body parser rather than inheriting the app's. The
- * app's CORS is an allowlist of the dashboard's own origins, which is the
- * opposite of what is needed here — a widget is embedded on customer sites whose
- * origins this server cannot enumerate in advance. Per-key origin enforcement
- * happens in `originGuard`, after the key is resolved, which a CORS preflight
- * cannot do because `OPTIONS` carries no custom headers.
- */
-
 const router = Router()
 
 router.use(
   cors({
-    // Reflects whatever origin asked. The check that matters is `originGuard`,
-    // which knows which origins this particular key is allowed on; a browser
-    // rejecting the response is not a security boundary we can rely on anyway.
     origin: true,
-    // No cookies, ever. A widget on a third-party page must not be able to make
-    // the visitor's browser attach credentials to this API.
     credentials: false,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-Api-Key', 'Authorization'],
-    // Without this the widget's JS cannot read its own rate-limit state and has
-    // no way to back off other than guessing.
     exposedHeaders: [
       'RateLimit-Limit',
       'RateLimit-Remaining',
@@ -60,44 +35,23 @@ router.use(
   })
 )
 
-// Far smaller than the app's 1mb. Nothing legitimate on this route is bigger
-// than a question and a few turns of history, and the parse happens before the
-// key is known — so it is the one cost an unauthenticated caller can impose.
 router.use(express.json({ limit: publicApiConfig.bodyLimit }))
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const MAX_SESSION_ID = 64
-
-// A session id is an opaque client-generated token — a uuid or a nanoid in
-// practice. Restricting the alphabet matters because this value is the one piece
-// of caller-controlled text that reaches the log line: a newline in it would let
-// a visitor forge log entries.
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
-
 const MAX_DOCUMENT_FILTER = 20
 
 const bad = (res, error, code) =>
   res.status(400).json({ success: false, error, code })
 
-/**
- * Loads the workspace behind the resolved key.
- *
- * A cached key record can briefly outlive its tenant, so a missing row is a real
- * possibility rather than an impossibility worth ignoring.
- */
 const loadTenant = async (tenantId) =>
   await Tenant.findByPk(tenantId, {
     attributes: ['id', 'name', 'widgetConfig']
   })
 
-/**
- * Maps failures onto codes the widget can act on, without naming which upstream
- * provider broke. A visitor cannot do anything with "Voyage is down", and the
- * name of the embedding vendor is not something the workspace owner has agreed
- * to publish on their site.
- */
 const handlePublicError = (error, res, keyPrefix) => {
   console.error(`[PUBLIC CHAT] ${keyPrefix}: ${error.code ?? error.name}: ${error.message}`)
 
@@ -130,15 +84,6 @@ const handlePublicError = (error, res, keyPrefix) => {
   })
 }
 
-/**
- * Trims client-sent history to something bounded.
- *
- * The widget holds the conversation, not the server, so this array is entirely
- * attacker-controlled: it is the cheapest way to inflate the prompt this route
- * pays for. Capping the turn count alone is not enough — six turns of 100 kB
- * each still costs a fortune — so the total character budget is enforced as
- * well, oldest turns dropped first, and each turn is individually truncated.
- */
 const parseHistory = (value) => {
   if (!Array.isArray(value)) return undefined
 
@@ -165,11 +110,6 @@ const parseHistory = (value) => {
   return turns.length > 0 ? turns : undefined
 }
 
-/**
- * Clamps rather than rejects. A widget sending `topK: 50` is far more likely to
- * be an over-eager integrator than an attacker, and silently serving them 6 good
- * sources is friendlier than a 400 they have to debug from a customer's site.
- */
 const parseTopK = (value) => {
   if (!Number.isInteger(value) || value < 1) return undefined
 
@@ -186,13 +126,6 @@ const parseDocumentIds = (value) => {
   return ids.length > 0 ? ids : undefined
 }
 
-/**
- * Everything the widget needs to render itself before the first message.
- *
- * Deliberately cheap and quota-light: it is hit once per page load, including on
- * pages nobody ever chats on, so it consumes a rate-limit slot but not a message
- * from the daily quota.
- */
 router.get(
   '/config',
   apiKeyAuth,
@@ -263,17 +196,10 @@ const validateChat = (req) => {
   return {
     query: trimmed,
     stream: req.body.stream === true,
-    // Analytics only, and dropped entirely if it is not a plain token. It is
-    // never a rate-limit bucket: an attacker rotates a client-generated id for
-    // free, so bucketing on it would be a limiter that asks permission to be
-    // bypassed.
     sessionId: parseSessionId(req.body.sessionId),
     options: {
       topK: parseTopK(req.body.topK),
       history: parseHistory(req.body.history),
-      // Filtering is a property of the key, not of the request. A widget key
-      // without `chat:filter` cannot aim retrieval at chosen documents, so a
-      // lifted key cannot be used to probe the corpus document by document.
       documentIds: req.apiKey.scopes.includes('chat:filter')
         ? parseDocumentIds(req.body.documentIds)
         : undefined
@@ -281,16 +207,6 @@ const validateChat = (req) => {
   }
 }
 
-/**
- * One message.
- *
- * The middleware order is the whole security story, and it is deliberate:
- * identify the workspace, prove the request came from a site the owner listed,
- * prove the key is allowed to ask questions, spend the quota, and only then let
- * the content guard look at the words. Quota is spent before the guardrail
- * check on purpose — a limiter that refunds rejected requests rewards hammering
- * it, and the guardrail is the cheapest thing in the chain to hammer.
- */
 router.post(
   '/chat',
   apiKeyAuth,
@@ -328,9 +244,6 @@ router.post(
           res,
           produce: () => queryRAGStream(req.tenantId, parsed.query, parsed.options),
           logLabel: label,
-          // The dashboard's event also carries `searchQuery` and `rewritten`.
-          // Those are the internal reformulation of the question and belong to
-          // the workspace, not to a visitor on someone else's website.
           buildSourcesEvent: (result) => ({
             sources: redactSources(result.sources, sourceMode),
             chunksUsed: result.chunksUsed || 0
@@ -362,7 +275,6 @@ router.post(
           `${result.cached ? 'cache hit' : `stage=${result.retrieval?.stage ?? '?'}`}`
       )
 
-      // Record fire-and-forget. The public response shape is NOT changed.
       recordTurn({
         tenantId: req.tenantId,
         apiKeyId,

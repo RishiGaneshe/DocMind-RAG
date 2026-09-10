@@ -1,28 +1,13 @@
 import { publicApiConfig } from '../config.js'
 
-/**
- * Origin allowlisting for public keys.
- *
- * What this buys and what it does not: browsers set `Origin` on cross-origin
- * requests and page JavaScript cannot forge it, so this stops someone lifting a
- * key out of a bundle and embedding the widget on their own site. It does not
- * stop `curl`, which can send any `Origin` it likes. The daily quota is what
- * bounds a determined direct caller; this bounds the easy case.
- *
- * Patterns are compared as normalised origins — scheme, host and non-default
- * port — because that is exactly the granularity the browser reports. Comparing
- * anything finer would be comparing against a value the browser never sends.
- */
+// Origin allowlisting for public keys
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
 
 const isLoopback = (hostname) =>
   LOOPBACK_HOSTS.has(hostname) || hostname.endsWith('.localhost')
 
-/**
- * Parses one allowlist entry into `{ origin, wildcard, base }`, or returns
- * `{ error }`. Pure, so the rule set is testable without an HTTP layer.
- */
+// Parse allowlist entry into { origin, wildcard, base }
 export const parseOriginPattern = (raw) => {
   if (typeof raw !== 'string' || !raw.trim()) {
     return { error: 'An origin must be a non-empty string' }
@@ -69,9 +54,6 @@ export const parseOriginPattern = (raw) => {
     return { error: `"${trimmed}" may contain only one wildcard` }
   }
 
-  // `https://*.com` would hand the key to every site on the internet under that
-  // suffix. Requiring two labels does not make this a public-suffix-aware check,
-  // but it removes the version of the mistake that is trivially catastrophic.
   if (wildcard && base.split('.').filter(Boolean).length < 2) {
     return { error: `"${trimmed}" is too broad — wildcard a domain you own` }
   }
@@ -99,11 +81,7 @@ export const parseOriginPattern = (raw) => {
   }
 }
 
-/**
- * Validates and de-duplicates a whole allowlist. Returns `{ origins }` or
- * `{ error }` naming the first entry that failed, so the dashboard can point at
- * the offending row rather than saying "invalid input".
- */
+// Validate and deduplicate origins list
 export const normaliseOrigins = (value) => {
   if (value === undefined || value === null) return { origins: [] }
 
@@ -130,14 +108,7 @@ export const normaliseOrigins = (value) => {
   return { origins }
 }
 
-/**
- * The origin the request actually came from.
- *
- * `Origin` is the authority. `Referer` is consulted only as a fallback, for the
- * handful of browser and proxy combinations that strip `Origin` on same-site
- * requests; its path is discarded. A request with neither is not a browser
- * request.
- */
+// Extract origin from request headers
 export const requestOrigin = (req) => {
   const header = req.headers.origin
 
@@ -162,13 +133,7 @@ export const requestOrigin = (req) => {
   return null
 }
 
-/**
- * Whether `origin` satisfies any entry in `patterns`.
- *
- * A wildcard entry matches subdomains only. `https://*.acme.com` deliberately
- * does not match `https://acme.com`: an owner who wants the apex lists it, and
- * the alternative would silently widen every wildcard by one host.
- */
+// Check if origin matches allowed patterns
 export const originAllowed = (origin, patterns) => {
   if (!Array.isArray(patterns) || patterns.length === 0) return true
   if (!origin) return false
@@ -193,18 +158,11 @@ export const originAllowed = (origin, patterns) => {
 
     if (!parsed.wildcard) return parsed.base === hostname
 
-    // Suffix match on a dot-prefixed base, so `evil-acme.com` cannot satisfy
-    // `*.acme.com` and neither can the bare apex.
     return hostname.endsWith(`.${parsed.base}`) && hostname !== parsed.base
   })
 }
 
-/**
- * Enforces the allowlist for the key already resolved onto `req.apiKey`.
- *
- * Secret keys are exempt: they are used server-to-server, where there is no
- * `Origin` to check and no browser to protect.
- */
+// Enforce origin allowlist for API key
 export const originGuard = (req, res, next) => {
   const key = req.apiKey
 

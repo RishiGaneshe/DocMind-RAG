@@ -10,15 +10,6 @@ import {
 } from '../services/widgetService.js'
 import { WIDGET_SOURCE_MODES } from '../config.js'
 
-/**
- * Widget appearance and the source-exposure mode, for the workspace owner.
- *
- * The stored JSONB holds only the keys the owner has actually changed; defaults
- * are applied on read. That way raising a default — or adding a setting — takes
- * effect for every workspace that never touched it, instead of leaving a fleet of
- * rows frozen at whatever the defaults were on the day they were created.
- */
-
 const router = Router({ mergeParams: true })
 
 router.use(authenticate, requireTenant)
@@ -48,15 +39,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-/**
- * Partial update. Only the supplied keys are written, merged over what is already
- * stored, so a form that posts one field does not silently reset the rest.
- *
- * Last write wins if the owner has the settings page open twice. A read-modify-
- * write is the wrong shape for that in general, but these are single-owner
- * presentation settings, and the alternative — a version column and a conflict
- * dialog — costs more than the problem.
- */
 router.put('/', async (req, res) => {
   try {
     const result = normaliseWidgetConfig(req.body)

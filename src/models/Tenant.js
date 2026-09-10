@@ -43,18 +43,11 @@ export const Tenant = sequelize.define(
       type: DataTypes.UUID,
       allowNull: false
     },
-    // Deprecated. Superseded by the `api_keys` table, which can be scoped,
-    // rotated and revoked. Retained only so a rollback of the application code
-    // is not a data loss event; no endpoint returns it and nothing
-    // authenticates with it.
     apiKey: {
       type: DataTypes.STRING,
       unique: true,
       defaultValue: () => crypto.randomUUID()
     },
-    // Widget branding plus the source-exposure mode the public chat route
-    // redacts against. JSONB rather than a side table: strictly 1:1 with a
-    // tenant, and read on every widget bootstrap.
     widgetConfig: {
       type: DataTypes.JSONB,
       allowNull: false,

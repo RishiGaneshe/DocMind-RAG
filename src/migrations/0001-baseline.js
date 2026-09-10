@@ -1,22 +1,6 @@
-/**
- * Baseline schema.
- *
- * Every statement is written `IF NOT EXISTS` because this migration has to be
- * correct in two situations: a fresh database, and the existing one whose tables
- * `sequelize.sync({ alter: true })` already created. Applying it to the latter
- * must be a no-op, not a collision.
- *
- * There is deliberately no `down`. Reversing the baseline means dropping every
- * table in the system, which is not something a stray `migrate:undo` should be
- * able to do.
- */
-
+// Baseline database schema
 const statements = [
-  // ── enum types ──
-  // Sequelize's ENUM columns are backed by named Postgres types following the
-  // `enum_<table>_<column>` convention. They are created here so a freshly
-  // migrated database is byte-identical to one `sync` produced, and wrapped in an
-  // exception handler because `CREATE TYPE` has no `IF NOT EXISTS`.
+  // Enum types
   `DO $$ BEGIN
      CREATE TYPE "enum_users_role" AS ENUM ('owner', 'member');
    EXCEPTION WHEN duplicate_object THEN NULL; END $$`,

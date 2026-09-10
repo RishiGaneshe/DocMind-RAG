@@ -1,16 +1,4 @@
-/**
- * Conversation logging.
- *
- * Every question-answer exchange is recorded so workspace owners can review
- * what their users are asking, debug bad answers after the fact, and — in a
- * future phase — promote high-quality Q&A pairs back into the corpus.
- *
- * Two tables rather than one: `conversations` groups turns that belong to the
- * same thread, and `conversation_turns` holds the per-question detail. The
- * split keeps listing cheap (one row per thread, no aggregation) and the
- * detail complete (full retrieval metadata on every turn).
- */
-
+// Conversation and turn logging migration
 const statements = [
   // ── enum ──
   `DO $$ BEGIN

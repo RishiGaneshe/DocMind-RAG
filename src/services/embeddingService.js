@@ -10,11 +10,6 @@ const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * Resolved per call rather than at import. A missing key previously threw
- * while the module was still loading, which took the whole process down
- * instead of failing the one request that needed it.
- */
 const requireApiKey = () => {
   if (!config.voyageApiKey) {
     const error = new Error('VOYAGE_API_KEY is not configured')
@@ -25,11 +20,6 @@ const requireApiKey = () => {
   return config.voyageApiKey
 }
 
-/**
- * An oversized input is a chunking defect, so it is surfaced rather than
- * quietly truncated. Truncating here used to leave the stored chunk text
- * different from the text that was actually embedded.
- */
 const assertWithinLimit = (texts) => {
   const offender = texts.findIndex(
     (text) => text.length > embeddingConfig.maxInputChars
@@ -163,14 +153,6 @@ const chunkArray = (items, size) => {
   return batches
 }
 
-/**
- * Embeds an array of texts, preserving input order. Entries that fail after
- * exhausting retries come back as null so a partially embedded document can
- * still be stored; callers decide whether that is acceptable.
- *
- * Batches run concurrently under a limiter rather than sequentially with a
- * fixed cooldown, which is what made large uploads take minutes.
- */
 export const generateEmbeddings = async (texts, inputType = 'document') => {
   if (!Array.isArray(texts)) {
     throw new TypeError('texts must be an array')

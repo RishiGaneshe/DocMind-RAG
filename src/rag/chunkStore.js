@@ -5,13 +5,6 @@ import { DocumentChunk } from '../models/DocumentChunk.js'
 const LEXICAL_CONFIG = 'english'
 const LEXICAL_INDEX_NAME = 'document_chunks_fts_idx'
 
-/**
- * Creates the GIN index backing lexical search. An expression index is used
- * rather than a stored tsvector column so that `sequelize.sync({ alter: true })`
- * has no column it does not know about and might decide to drop.
- *
- * Safe to call on every boot.
- */
 export const ensureLexicalIndex = async () => {
   await sequelize.query(
     `CREATE INDEX IF NOT EXISTS ${LEXICAL_INDEX_NAME}
@@ -22,11 +15,6 @@ export const ensureLexicalIndex = async () => {
   console.log(`Lexical index ready: ${LEXICAL_INDEX_NAME}`)
 }
 
-/**
- * Writes chunk rows, overwriting any row with the same id. Re-uploading the
- * same document therefore refreshes its text in place instead of failing on a
- * primary key collision.
- */
 export const saveChunks = async (rows) => {
   if (rows.length === 0) return 0
 
@@ -49,15 +37,6 @@ export const saveChunks = async (rows) => {
   return rows.length
 }
 
-/**
- * Loads chunk text for ids returned by an ANN query. `tenantId` is part of the
- * predicate rather than assumed from the id, so a forged or stale id from
- * another namespace cannot hydrate into someone else's context.
- *
- * Returns a Map keyed by chunk id. Ids with no row are simply absent, which is
- * the expected case for vectors written before the chunk store existed and not
- * yet backfilled.
- */
 export const hydrateChunks = async (tenantId, ids) => {
   if (ids.length === 0) return new Map()
 
@@ -80,13 +59,6 @@ export const hydrateChunks = async (tenantId, ids) => {
   return new Map(rows.map((row) => [row.id, row]))
 }
 
-/**
- * Lexical half of hybrid retrieval. `websearch_to_tsquery` is used instead of
- * `plainto_tsquery` because it accepts quoted phrases and `-exclusions` from
- * user input and never raises a syntax error on odd punctuation.
- *
- * Returns `[{ id, rank }]` best first.
- */
 export const lexicalSearch = async (
   tenantId,
   query,
@@ -127,11 +99,6 @@ export const deleteChunksForDocument = async (tenantId, documentId) =>
 export const countChunks = async (tenantId) =>
   await DocumentChunk.count({ where: { tenantId } })
 
-/**
- * Whether the chunk store holds anything for this tenant. Retrieval uses this
- * to decide between hydrating from Postgres and falling back to Pinecone
- * metadata, so a tenant whose vectors predate the backfill still gets answers.
- */
 export const hasChunks = async (tenantId) => {
   const count = await DocumentChunk.count({ where: { tenantId }, limit: 1 })
 

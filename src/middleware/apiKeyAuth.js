@@ -11,23 +11,8 @@ import {
 } from '../services/quotaService.js'
 import { publicApiConfig } from '../config.js'
 
-/**
- * Authentication for the public, unauthenticated-visitor surface.
- *
- * The key identifies a workspace, not a person. There is no user, no session and
- * no `req.user`; downstream handlers read `req.tenantId`, which is set from the
- * database row and never from anything the caller sent.
- */
-
 const BEARER = /^Bearer\s+(\S+)$/i
 
-/**
- * `X-Api-Key` first, `Authorization: Bearer` second.
- *
- * Not a query parameter: those land in access logs, browser history, and
- * `Referer` headers on any outbound link the page makes. A header is the only
- * place a credential can travel without being written down somewhere.
- */
 const extractKey = (req) => {
   const header = req.headers['x-api-key']
 
@@ -59,8 +44,6 @@ export const apiKeyAuth = async (req, res, next) => {
       )
     }
 
-    // Structural check before any I/O: a flood of malformed keys costs a regex
-    // rather than a Redis round trip apiece.
     if (!looksLikeApiKey(raw)) {
       return reject(res, 401, 'That API key is not valid.', 'API_KEY_INVALID')
     }
@@ -107,11 +90,6 @@ export const apiKeyAuth = async (req, res, next) => {
   }
 }
 
-/**
- * Gate for one capability. Returns 403 rather than 401: the key is valid, it
- * simply is not permitted here, and telling the two apart saves whoever is
- * debugging the widget an hour.
- */
 export const requireScope = (scope) => (req, res, next) => {
   if (!req.apiKey) {
     return reject(res, 500, 'Scope check ran before key resolution')
@@ -139,26 +117,6 @@ const setRateHeaders = (res, result) => {
   res.setHeader('RateLimit-Reset', result.resetSeconds)
 }
 
-/**
- * Rate limits and, optionally, the daily quota.
- *
- * Three buckets, because each stops something different:
- *
- *  - per key, per minute — one site cannot outrun its allowance
- *  - per visitor IP, per minute — one abusive visitor cannot spend the whole
- *    site's allowance, which a key-only limit would let them do
- *  - per key, per day — the hard cost ceiling, and the only one of the three a
- *    patient attacker cannot simply wait out
- *
- * Denied requests are counted. A limiter that forgives rejections rewards
- * hammering it.
- *
- * On Redis failure this **fails closed** with a 503. Every request past this
- * point spends money at three upstream providers, so "we could not check the
- * quota" must not be read as "the request is within quota". The application
- * already requires Redis to boot, so this adds no new dependency — only an
- * explicit behaviour for when that dependency is degraded.
- */
 export const enforceQuota = ({ daily = false, visitor = false } = {}) =>
   async (req, res, next) => {
     const key = req.apiKey

@@ -3,15 +3,6 @@ import {
   DEFAULT_WIDGET_SOURCE_MODE
 } from '../config.js'
 
-/**
- * Widget presentation settings, and the redaction rule that governs how much of
- * a retrieved source an anonymous visitor is shown.
- *
- * Stored as JSONB on `tenants.widgetConfig` because it is strictly 1:1 with a
- * workspace and is read on every widget bootstrap. Validated on the way in
- * rather than on the way out, so a malformed value can never reach a browser.
- */
-
 export const WIDGET_DEFAULTS = {
   title: 'Ask us anything',
   greeting: "Hi! Ask me anything — I'm here to help.",
@@ -43,11 +34,6 @@ const text = (value, { max, label }) => {
   return { value: trimmed }
 }
 
-/**
- * Validates a partial update. Returns `{ config }` containing only the keys the
- * caller actually supplied, so a PUT that omits a field leaves it alone rather
- * than resetting it to the default.
- */
 export const normaliseWidgetConfig = (input) => {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     return { error: 'The widget configuration must be an object' }
@@ -134,15 +120,6 @@ export const normaliseWidgetConfig = (input) => {
   return { config }
 }
 
-/**
- * Strips a source list down to what the owner has agreed to expose publicly.
- *
- * The unredacted shape from `ragEngine.buildSources` carries a 240-character
- * `snippet` of raw chunk text plus the internal `documentId` and relevance
- * scores. On a public widget that leaks internal filenames and lets a caller
- * walk the corpus out 240 characters at a time, so `labels` — enough to render a
- * citation, nothing more — is the default.
- */
 export const redactSources = (sources, mode) => {
   if (!Array.isArray(sources) || sources.length === 0) return []
   if (mode === 'hidden') return []

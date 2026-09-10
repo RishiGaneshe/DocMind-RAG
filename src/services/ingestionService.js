@@ -39,8 +39,6 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
       throw Object.assign(new Error(EMPTY_TEXT_MESSAGE), { code: 'NO_TEXT' })
     }
 
-    // 'document' rather than 'query': voyage-4 is asymmetric and the input_type
-    // must match how the vector will be used.
     const embeddings = await generateEmbeddings(
       chunks.map((chunk) => chunk.text),
       'document'
@@ -66,9 +64,6 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
     const vectors = embedded.map(({ chunk, embedding }) => ({
       id: buildChunkId(documentId, chunk.chunkIndex),
       values: embedding,
-      // `text` is duplicated here on purpose. Retrieval hydrates from Postgres
-      // and only falls back to this copy, which keeps the corpus answerable if
-      // a chunk row is ever missing.
       metadata: {
         tenantId,
         documentId,
@@ -84,8 +79,6 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
 
     await upsertVectors(tenantId, vectors)
 
-    // Written after the vectors so a failure cannot leave the lexical lane
-    // serving chunks the dense lane has never heard of.
     await saveChunks(
       embedded.map(({ chunk }) => ({
         id: buildChunkId(documentId, chunk.chunkIndex),
@@ -113,8 +106,6 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
       { where: { id: documentId, tenantId } }
     )
 
-    // Invalidates every cached answer for this tenant: the corpus they were
-    // computed against no longer exists.
     await bumpCorpusVersion(tenantId)
 
     console.log(
@@ -124,8 +115,6 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
   } catch (error) {
     console.error(`[INGEST] ${documentId} failed: ${error.message}`)
 
-    // A failed document must leave nothing retrievable behind. Both stores are
-    // cleaned independently so one failing cleanup does not skip the other.
     if (vectorIds.length > 0) {
       await deleteVectors(tenantId, vectorIds).catch((cleanupError) => {
         console.error(
@@ -156,10 +145,5 @@ const runIngestion = async (documentId, tenantId, filename, fileBuffer) => {
   }
 }
 
-/**
- * Hands a document to the queue and returns immediately. The returned promise
- * is deliberately not awaited by the route; it is returned only so tests can
- * wait for completion.
- */
 export const enqueueIngestion = (documentId, tenantId, filename, fileBuffer) =>
   limit(() => runIngestion(documentId, tenantId, filename, fileBuffer))

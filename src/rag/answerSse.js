@@ -1,25 +1,6 @@
 import { createAnswerFilter } from './answerStream.js'
 import { NO_ANSWER_MESSAGE } from '../config.js'
 
-/**
- * The SSE relay shared by the dashboard query route and the public widget route.
- *
- * Extracted rather than duplicated because the fragile part is not the HTTP
- * plumbing but the answer contract enforced on the way out: the refusal sentinel
- * has to be swapped for user-facing prose, and citation markers have to be
- * stripped so retrieval numbering never reaches the visitor. Two copies of that
- * would drift, and the copy that drifted would be the public one.
- *
- * `buildSourcesEvent` is the only seam. The public route uses it to redact the
- * source list before it reaches an anonymous visitor.
- *
- * `produce` is a thunk rather than an already-resolved result so that the
- * response headers go out first and a retrieval failure surfaces as an SSE
- * `error` event on an open stream. Resolving it before `writeHead` would let the
- * route answer with an HTTP error code instead, which reads better but would
- * change the contract clients are already written against.
- */
-
 const defaultSourcesEvent = (result) => ({
   sources: result.sources,
   query: result.query,
@@ -39,8 +20,6 @@ export const streamAnswer = async ({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    // Nginx buffers proxied responses by default, which holds every token until
-    // the answer is complete and defeats the point of streaming.
     'X-Accel-Buffering': 'no'
   })
 
@@ -76,12 +55,22 @@ export const streamAnswer = async ({
     let buffer = ''
     let upstreamDone = false
     let collectedAnswer = ''
+    let clientClosed = false
+
+    const handleClose = () => {
+      clientClosed = true
+      reader.cancel().catch(() => {})
+    }
+
+    res.on('close', handleClose)
 
     try {
       while (true) {
+        if (clientClosed) break
+
         const { done, value } = await reader.read()
 
-        if (done) break
+        if (done || clientClosed) break
 
         buffer += decoder.decode(value, { stream: true })
 
@@ -89,6 +78,8 @@ export const streamAnswer = async ({
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (clientClosed) break
+
           const trimmed = line.trim()
 
           if (!trimmed || !trimmed.startsWith('data: ')) continue
@@ -117,19 +108,22 @@ export const streamAnswer = async ({
         }
       }
 
-      const tail = filter.flush()
+      if (!clientClosed) {
+        const tail = filter.flush()
 
-      if (tail) {
-        sendSSE('chunk', { content: tail })
-        collectedAnswer += tail
+        if (tail) {
+          sendSSE('chunk', { content: tail })
+          collectedAnswer += tail
+        }
+
+        if (filter.refused) {
+          sendSSE('chunk', { content: NO_ANSWER_MESSAGE })
+        }
+
+        sendSSE('done', { success: true })
       }
-
-      if (filter.refused) {
-        sendSSE('chunk', { content: NO_ANSWER_MESSAGE })
-      }
-
-      sendSSE('done', { success: true })
     } finally {
+      res.off('close', handleClose)
       reader.releaseLock()
       result.cleanup()
     }
@@ -142,12 +136,13 @@ export const streamAnswer = async ({
       `${logLabel}: streamed ${result.chunksUsed} chunks, ` +
         `stage=${result.retrieval?.stage}` +
         `${upstreamDone ? '' : ', upstream ended without [DONE]'}` +
-        `${filter.refused ? ', model refused' : ''}`
+        `${filter.refused ? ', model refused' : ''}` +
+        `${clientClosed ? ', client aborted' : ''}`
     )
 
-    res.end()
+    if (!res.writableEnded) res.end()
 
-    if (onComplete) {
+    if (onComplete && !clientClosed) {
       const answer = filter.refused ? NO_ANSWER_MESSAGE : collectedAnswer
 
       onComplete({ answer, refused: filter.refused, result })

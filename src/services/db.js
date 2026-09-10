@@ -1,9 +1,6 @@
 import { Sequelize } from 'sequelize'
 import { config } from '../config.js'
 
-// Sequelize's own failure for a malformed URL is "Dialect needs to be
-// explicitly supplied", which points at the code rather than at the line of
-// .env actually responsible. These two checks name the problem instead.
 const url = config.databaseUrl
 
 if (!url) {
@@ -13,10 +10,6 @@ if (!url) {
   )
 }
 
-// dotenv splits on the first "=" only, so a line written as
-// `DATABASE_URL=DATABASE_URL=postgres://…` parses without complaint and leaves
-// the key name inside its own value. Nothing downstream can detect that except
-// by looking at the value.
 const duplicatedKey = /^[A-Z_][A-Z0-9_]*=/.exec(url)
 
 if (duplicatedKey) {

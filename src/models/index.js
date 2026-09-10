@@ -37,8 +37,7 @@ Document.belongsTo(Tenant, {
   foreignKey: 'tenantId'
 })
 
-// Deleting a document takes its chunks with it, so the lexical index can never
-// outlive the rows it points at.
+// Cascade delete chunks when document is deleted
 Document.hasMany(DocumentChunk, {
   foreignKey: 'documentId',
   as: 'chunks',
@@ -49,9 +48,7 @@ DocumentChunk.belongsTo(Document, {
   foreignKey: 'documentId'
 })
 
-
-// Deleting a workspace takes its keys with it, so a revoked-by-deletion key can
-// never resolve to a tenant row that is no longer there.
+// Cascade delete API keys when tenant is deleted
 Tenant.hasMany(ApiKey, {
   foreignKey: 'tenantId',
   as: 'apiKeys',
@@ -62,17 +59,13 @@ ApiKey.belongsTo(Tenant, {
   foreignKey: 'tenantId'
 })
 
-// The creator is recorded for audit only, so losing the user must not lose the
-// key: the FK is ON DELETE SET NULL in the migration.
 ApiKey.belongsTo(User, {
   foreignKey: 'createdBy',
   as: 'creator',
   constraints: false
 })
 
-
-// ── Conversations ──
-// Deleting a workspace takes its conversation history with it.
+// Cascade delete conversations when tenant is deleted
 Tenant.hasMany(Conversation, {
   foreignKey: 'tenantId',
   as: 'conversations',

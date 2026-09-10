@@ -10,9 +10,6 @@ import { recordTurn } from '../services/conversationService.js'
 
 const router = Router({ mergeParams: true })
 
-// Ordered deliberately: identity first, then tenant ownership, then the rate
-// limiter (which buckets by user id once `req.user` exists), then the content
-// guard. Nothing paid happens before all four have passed.
 router.use(authenticate, requireTenant, queryLimiter, promptGuardrails)
 
 const MAX_QUERY_LENGTH = 2000
@@ -20,13 +17,6 @@ const MAX_DOCUMENT_FILTER = 50
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-
-/**
- * Maps upstream failures onto status codes the client can act on. Provider
- * names are matched via the `code`/`provider` fields the services attach, not
- * by substring-matching message text, so renaming a provider cannot silently
- * turn a 502 into a 500.
- */
 const handleError = (error, res) => {
   console.error('Error processing query:', error)
 
@@ -75,12 +65,6 @@ const handleError = (error, res) => {
   })
 }
 
-
-/**
- * Only well-formed UUIDs survive, and at most `MAX_DOCUMENT_FILTER` of them.
- * The list reaches a Pinecone metadata filter and a SQL `IN`, so bounding it
- * here keeps a client from turning a query into an unbounded scan.
- */
 const parseDocumentIds = (value) => {
   if (value === undefined || value === null) return undefined
 
@@ -139,9 +123,6 @@ const validateRequest = async (req) => {
     return { error: documentFilter.error, status: 400 }
   }
 
-  // No tenant lookup here. `requireTenant` has already proved that this
-  // tenantId is the caller's own, so a row fetch would confirm the existence of
-  // a tenant whose id came from a token this server signed.
   return {
     tenantId,
     query: query.trim(),
@@ -152,8 +133,6 @@ const validateRequest = async (req) => {
       : undefined
   }
 }
-
-
 
 router.post('/', async (req, res) => {
   const startedAt = Date.now()
@@ -172,8 +151,6 @@ router.post('/', async (req, res) => {
     const options = { topK, documentIds, history }
 
     if (req.body.stream === true) {
-      // The relay lives in `rag/answerSse.js` so the public widget route
-      // enforces the identical answer contract rather than its own copy.
       return streamAnswer({
         res,
         produce: () => queryRAGStream(tenantId, query, options),
@@ -205,7 +182,6 @@ router.post('/', async (req, res) => {
         `${result.cached ? 'cache hit' : `${result.retrieval?.stats?.elapsedMs ?? '?'}ms retrieval`}`
     )
 
-    // Record the turn fire-and-forget. The response is sent first.
     const turnRecord = await recordTurn({
       tenantId,
       userId: req.user?.userId,
