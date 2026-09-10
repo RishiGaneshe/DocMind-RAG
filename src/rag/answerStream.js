@@ -1,7 +1,8 @@
 import {
   SENTINEL_MAX_LENGTH,
   SENTINEL_NORMALIZED,
-  normalizeForSentinel
+  normalizeForSentinel,
+  scrubSourceLeaks
 } from '../services/llmService.js'
 
 const createCitationFilter = (sourceCount) => {
@@ -27,7 +28,7 @@ const createCitationFilter = (sourceCount) => {
       const held = pending.match(/\s*\[\d{0,3}$/)
       const safeLength = held ? pending.length - held[0].length : pending.length
 
-      const out = scrub(pending.slice(0, safeLength))
+      const out = scrubSourceLeaks(scrub(pending.slice(0, safeLength)))
 
       pending = pending.slice(safeLength)
 
@@ -35,7 +36,7 @@ const createCitationFilter = (sourceCount) => {
     },
 
     flush() {
-      const out = scrub(pending)
+      const out = scrubSourceLeaks(scrub(pending))
 
       pending = ''
 
