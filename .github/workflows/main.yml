@@ -46,8 +46,12 @@ jobs:
 
           cd \$DEV_DIR
 
-          # Build and run containers
-          sudo docker compose up -d --build
+          # Clear old Docker build cache first
+          sudo docker builder prune -af || true
+
+          # Build and run containers without cache
+          sudo docker compose build --no-cache
+          sudo docker compose up -d
 
           # Optional cleanup
           sudo docker container prune -f
