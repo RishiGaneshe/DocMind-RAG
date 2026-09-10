@@ -32,7 +32,8 @@ export const streamAnswer = async ({
   res,
   produce,
   logLabel,
-  buildSourcesEvent = defaultSourcesEvent
+  buildSourcesEvent = defaultSourcesEvent,
+  onComplete
 }) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -58,7 +59,13 @@ export const streamAnswer = async ({
 
       console.log(`${logLabel}: no results (${result.retrieval?.stage})`)
 
-      return res.end()
+      res.end()
+
+      if (onComplete) {
+        onComplete({ answer: NO_ANSWER_MESSAGE, refused: false, result })
+      }
+
+      return
     }
 
     const filter = createAnswerFilter(result.sourceCount)
@@ -68,6 +75,7 @@ export const streamAnswer = async ({
 
     let buffer = ''
     let upstreamDone = false
+    let collectedAnswer = ''
 
     try {
       while (true) {
@@ -99,7 +107,10 @@ export const streamAnswer = async ({
 
             const emitted = filter.push(content)
 
-            if (emitted) sendSSE('chunk', { content: emitted })
+            if (emitted) {
+              sendSSE('chunk', { content: emitted })
+              collectedAnswer += emitted
+            }
           } catch {
             // A malformed delta is skipped rather than failing the stream.
           }
@@ -108,7 +119,10 @@ export const streamAnswer = async ({
 
       const tail = filter.flush()
 
-      if (tail) sendSSE('chunk', { content: tail })
+      if (tail) {
+        sendSSE('chunk', { content: tail })
+        collectedAnswer += tail
+      }
 
       if (filter.refused) {
         sendSSE('chunk', { content: NO_ANSWER_MESSAGE })
@@ -132,6 +146,12 @@ export const streamAnswer = async ({
     )
 
     res.end()
+
+    if (onComplete) {
+      const answer = filter.refused ? NO_ANSWER_MESSAGE : collectedAnswer
+
+      onComplete({ answer, refused: filter.refused, result })
+    }
   } catch (error) {
     console.error('Streaming error:', error)
 

@@ -12,7 +12,7 @@ import { config } from './config.js'
 import { sequelize } from './services/db.js'
 import { runMigrations, pendingMigrations } from './services/migrator.js'
 import { connectRedis, disconnectRedis } from './services/redisService.js'
-import { User, Tenant, Document, DocumentChunk, ApiKey } from './models/index.js'
+import { User, Tenant, Document, DocumentChunk, ApiKey, Conversation, ConversationTurn } from './models/index.js'
 
 import authRoutes from './api/auth.js'
 import tenantRoutes from './api/tenant.js'
@@ -22,6 +22,7 @@ import healthRoutes from './api/health.js'
 import apiKeyRoutes from './api/apiKeys.js'
 import widgetRoutes from './api/widget.js'
 import publicChatRoutes from './api/publicChat.js'
+import conversationRoutes from './api/conversations.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { generalLimiter, authLimiter } from './middleware/rateLimit.js'
 
@@ -60,6 +61,7 @@ app.use('/api/tenants/:tenantId/api-keys', apiKeyRoutes)
 app.use('/api/tenants/:tenantId/widget', widgetRoutes)
 app.use('/api/tenants/:tenantId/documents', documentRoutes)
 app.use('/api/tenants/:tenantId/query', queryRoutes)
+app.use('/api/tenants/:tenantId/conversations', conversationRoutes)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

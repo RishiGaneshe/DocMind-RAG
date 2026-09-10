@@ -6,6 +6,7 @@ import { requireTenant } from '../middleware/requireTenant.js'
 import { queryLimiter } from '../middleware/rateLimit.js'
 import { promptGuardrails } from '../middleware/guardrails.js'
 import { retrievalConfig, llmConfig } from '../config.js'
+import { recordTurn } from '../services/conversationService.js'
 
 const router = Router({ mergeParams: true })
 
@@ -155,6 +156,8 @@ const validateRequest = async (req) => {
 
 
 router.post('/', async (req, res) => {
+  const startedAt = Date.now()
+
   try {
     const validation = await validateRequest(req)
 
@@ -174,11 +177,27 @@ router.post('/', async (req, res) => {
       return streamAnswer({
         res,
         produce: () => queryRAGStream(tenantId, query, options),
-        logLabel: `[QUERY API] ${tenantId}`
+        logLabel: `[QUERY API] ${tenantId}`,
+        onComplete: ({ answer, refused, result }) => {
+          recordTurn({
+            tenantId,
+            userId: req.user?.userId,
+            channel: 'dashboard',
+            query,
+            result: {
+              ...result,
+              answer,
+              noResults: refused
+            },
+            responseTimeMs: Date.now() - startedAt,
+            streamMode: true
+          }).catch(err => console.warn('[CONVERSATION] stream turn:', err.message))
+        }
       })
     }
 
     const result = await queryRAG(tenantId, query, options)
+    const responseTimeMs = Date.now() - startedAt
 
     console.log(
       `[QUERY API] ${tenantId}: ${result.chunksUsed ?? 0} chunks, ` +
@@ -186,9 +205,25 @@ router.post('/', async (req, res) => {
         `${result.cached ? 'cache hit' : `${result.retrieval?.stats?.elapsedMs ?? '?'}ms retrieval`}`
     )
 
+    // Record the turn fire-and-forget. The response is sent first.
+    const turnRecord = await recordTurn({
+      tenantId,
+      userId: req.user?.userId,
+      channel: 'dashboard',
+      query,
+      result,
+      responseTimeMs,
+      streamMode: false
+    }).catch(err => {
+      console.warn('[CONVERSATION] json turn:', err.message)
+      return null
+    })
+
     return res.status(200).json({
       success: true,
-      ...result
+      ...result,
+      conversationId: turnRecord?.conversationId ?? null,
+      turnId: turnRecord?.turnId ?? null
     })
 
   } catch (error) {

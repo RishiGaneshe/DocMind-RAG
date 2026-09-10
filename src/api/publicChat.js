@@ -12,6 +12,7 @@ import {
 import { originGuard } from '../middleware/originGuard.js'
 import { promptGuardrails } from '../middleware/guardrails.js'
 import { resolveWidgetConfig, redactSources } from '../services/widgetService.js'
+import { recordTurn } from '../services/conversationService.js'
 import { publicApiConfig, retrievalConfig } from '../config.js'
 
 /**
@@ -298,7 +299,8 @@ router.post(
   enforceQuota({ daily: true, visitor: true }),
   promptGuardrails,
   async (req, res) => {
-    const { keyPrefix } = req.apiKey
+    const { keyPrefix, id: apiKeyId } = req.apiKey
+    const startedAt = Date.now()
 
     try {
       const parsed = validateChat(req)
@@ -332,16 +334,45 @@ router.post(
           buildSourcesEvent: (result) => ({
             sources: redactSources(result.sources, sourceMode),
             chunksUsed: result.chunksUsed || 0
-          })
+          }),
+          onComplete: ({ answer, refused, result }) => {
+            recordTurn({
+              tenantId: req.tenantId,
+              apiKeyId,
+              channel: 'widget',
+              sessionId: parsed.sessionId,
+              query: parsed.query,
+              result: {
+                ...result,
+                answer,
+                noResults: refused
+              },
+              responseTimeMs: Date.now() - startedAt,
+              streamMode: true
+            }).catch(err => console.warn('[CONVERSATION] widget stream turn:', err.message))
+          }
         })
       }
 
       const result = await queryRAG(req.tenantId, parsed.query, parsed.options)
+      const responseTimeMs = Date.now() - startedAt
 
       console.log(
         `${label}: ${result.chunksUsed ?? 0} chunks, ` +
           `${result.cached ? 'cache hit' : `stage=${result.retrieval?.stage ?? '?'}`}`
       )
+
+      // Record fire-and-forget. The public response shape is NOT changed.
+      recordTurn({
+        tenantId: req.tenantId,
+        apiKeyId,
+        channel: 'widget',
+        sessionId: parsed.sessionId,
+        query: parsed.query,
+        result,
+        responseTimeMs,
+        streamMode: false
+      }).catch(err => console.warn('[CONVERSATION] widget json turn:', err.message))
 
       return res.status(200).json({
         success: true,

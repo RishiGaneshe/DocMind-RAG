@@ -3,6 +3,8 @@ import { Tenant } from './Tenant.js'
 import { Document } from './Document.js'
 import { DocumentChunk } from './DocumentChunk.js'
 import { ApiKey } from './ApiKey.js'
+import { Conversation } from './Conversation.js'
+import { ConversationTurn } from './ConversationTurn.js'
 
 
 User.hasOne(Tenant, {
@@ -69,4 +71,42 @@ ApiKey.belongsTo(User, {
 })
 
 
-export { User, Tenant, Document, DocumentChunk, ApiKey }
+// ── Conversations ──
+// Deleting a workspace takes its conversation history with it.
+Tenant.hasMany(Conversation, {
+  foreignKey: 'tenantId',
+  as: 'conversations',
+  onDelete: 'CASCADE'
+})
+
+Conversation.belongsTo(Tenant, {
+  foreignKey: 'tenantId'
+})
+
+// Optional: the dashboard user who started the conversation.
+Conversation.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user',
+  constraints: false
+})
+
+// Optional: the API key used by a widget visitor.
+Conversation.belongsTo(ApiKey, {
+  foreignKey: 'apiKeyId',
+  as: 'apiKey',
+  constraints: false
+})
+
+// Deleting a conversation takes its turns with it.
+Conversation.hasMany(ConversationTurn, {
+  foreignKey: 'conversationId',
+  as: 'turns',
+  onDelete: 'CASCADE'
+})
+
+ConversationTurn.belongsTo(Conversation, {
+  foreignKey: 'conversationId'
+})
+
+
+export { User, Tenant, Document, DocumentChunk, ApiKey, Conversation, ConversationTurn }
