@@ -93,8 +93,8 @@ export const lexicalSearch = async (
   return rows.map((row) => ({ id: row.id, rank: Number(row.rank) }))
 }
 
-export const deleteChunksForDocument = async (tenantId, documentId) =>
-  await DocumentChunk.destroy({ where: { tenantId, documentId } })
+export const deleteChunksForDocument = async (tenantId, documentId, options = {}) =>
+  await DocumentChunk.destroy({ where: { tenantId, documentId }, ...options })
 
 export const countChunks = async (tenantId) =>
   await DocumentChunk.count({ where: { tenantId } })

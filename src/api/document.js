@@ -2,6 +2,8 @@ import { Router } from 'express'
 import multer from 'multer'
 import { Op } from 'sequelize'
 
+import { sequelize } from '../services/db.js'
+
 import { hashBuffer } from '../services/documentService.js'
 import {
   enqueueIngestion,
@@ -295,13 +297,22 @@ router.delete('/:documentId', async (req, res) => {
 
     const vectorIds = await collectVectorIds(tenantId, document)
 
-    if (vectorIds.length > 0) {
-      await deleteVectors(tenantId, vectorIds)
+    let removedChunks = 0
+
+    const transaction = await sequelize.transaction()
+    try {
+      removedChunks = await deleteChunksForDocument(tenantId, documentId, { transaction })
+      await document.destroy({ transaction })
+
+      if (vectorIds.length > 0) {
+        await deleteVectors(tenantId, vectorIds)
+      }
+
+      await transaction.commit()
+    } catch (error) {
+      await transaction.rollback()
+      throw error
     }
-
-    const removedChunks = await deleteChunksForDocument(tenantId, documentId)
-
-    await document.destroy()
 
     await bumpCorpusVersion(tenantId)
 

@@ -306,6 +306,21 @@
     .doc-status.FAILED { background: var(--danger); }
     .doc-status.PENDING { background: var(--text-muted); }
 
+    .delete-doc-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      margin-left: 4px;
+      transition: color 0.2s;
+    }
+
+    .delete-doc-btn:hover {
+      color: var(--danger);
+    }
+
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
@@ -1171,13 +1186,14 @@ async function loadDocuments() {
     if (data.success && data.documents.length > 0) {
       emptyDocs.style.display = 'none'
       const docItems = data.documents.map(doc => `
-        <div class="doc-item">
+        <div class="doc-item" id="doc-${doc.id}">
           <div class="doc-icon">📄</div>
           <div class="doc-info">
             <div class="doc-name" title="${doc.filename}">${doc.filename}</div>
             <div class="doc-meta">${formatFileSize(doc.fileSize)} · ${doc.totalChunks} chunks</div>
           </div>
           <div class="doc-status ${doc.status}" title="${doc.status}"></div>
+          <button class="delete-doc-btn" onclick="deleteDocument('${doc.id}', '${doc.filename}')" title="Delete Document">🗑️</button>
         </div>
       `).join('')
 
@@ -1194,6 +1210,35 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+async function deleteDocument(docId, filename) {
+  if (!confirm(`Are you sure you want to permanently delete "${filename}"?`)) return
+
+  try {
+    const response = await fetch(`${API_BASE}/api/tenants/${TENANT_ID}/documents/${docId}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.success) {
+      showToast(`Document "${filename}" deleted.`, 'success')
+      const docEl = document.getElementById(`doc-${docId}`)
+      if (docEl) docEl.remove()
+      
+      // If no docs left, show empty state
+      if (docList.children.length === 0) {
+        emptyDocs.style.display = 'block'
+      }
+    } else {
+      showToast(data.error || 'Failed to delete document.', 'error')
+    }
+  } catch (error) {
+    console.error('Error deleting document:', error)
+    showToast('Network error while deleting document.', 'error')
+  }
 }
 
 // ─────────────────────────────────────────────────
