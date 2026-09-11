@@ -3,11 +3,11 @@ import { generateAnswer } from './src/services/llmService.js'
 async function run() {
   try {
     console.log('🤖 Testing NVIDIA LLM generation...')
-    console.log('Sending query: "What is the capital of France?"\n')
+    console.log('Sending query: "How to apply for leave?"\n')
     
-    const query = 'What is the capital of France?'
+    const query = 'How to apply for leave?'
     const contextChunks = [
-      'The capital of France is Paris, a major European city known for its art, gastronomy, and culture.'
+      'To apply for leave, log into the HR portal and click on Leave Management. Next, select Leave Request and choose the leave type (casual, sick, or earned). Enter the start and end dates along with a brief reason, then submit for manager approval. Approval usually takes 24 hours.'
     ]
     
     const answer = await generateAnswer(query, contextChunks)
