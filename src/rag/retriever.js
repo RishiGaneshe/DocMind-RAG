@@ -10,6 +10,8 @@ import { querySimilarity, fetchVectorMetadata } from './vectorStore.js'
 import { hydrateChunks, lexicalSearch } from './chunkStore.js'
 import { fuseRankings, suppressDuplicates } from './ranking.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 const denseLane = async (tenantId, queryEmbedding, documentIds) => {
   const filter =
     Array.isArray(documentIds) && documentIds.length > 0
@@ -99,6 +101,7 @@ const hydrate = async (tenantId, ids) => {
 }
 
 const rerankWithCache = async (query, candidates) => {
+  const rerankStart = Date.now()
   const key = rerankCacheKey(
     RERANK_MODEL,
     query,
@@ -108,14 +111,19 @@ const rerankWithCache = async (query, candidates) => {
   if (cacheConfig.rerankEnabled) {
     const cached = await cacheGetJson(key)
 
-    if (Array.isArray(cached)) return cached
+    if (Array.isArray(cached)) {
+      console.log(`[TIMING] [${ist()}]   │     └─ rerank cache HIT: ${Date.now() - rerankStart}ms`)
+      return cached
+    }
   }
 
+  const modelStart = Date.now()
   const ranked = await rerankCandidates(
     query,
     candidates.map((candidate) => candidate.text),
     candidates.length
   )
+  console.log(`[TIMING] [${ist()}]   │     └─ rerank model API call (${RERANK_MODEL}): ${Date.now() - modelStart}ms (total rerank: ${Date.now() - rerankStart}ms)`)
 
   if (ranked && cacheConfig.rerankEnabled) {
     await cacheSetJson(key, ranked, cacheConfig.rerankTtlSeconds)
@@ -161,15 +169,38 @@ export const retrieve = async (tenantId, query, options = {}) => {
   const { documentIds } = options
 
   const startedAt = Date.now()
+  console.log(`[TIMING] [${ist()}]   ┌─ [RETRIEVER] retrieve START — query: "${query?.slice(0, 80)}"`)
+
+  let embTime = 0
+  let denseTime = 0
+  let lexicalTime = 0
+  const searchStart = Date.now()
 
   const [dense, lexical] = await Promise.all([
-    generateEmbedding(query, 'query').then((emb) =>
-      denseLane(tenantId, emb, documentIds)
-    ),
-    lexicalLane(tenantId, query, documentIds)
+    (async () => {
+      const eStart = Date.now()
+      const emb = await generateEmbedding(query, 'query')
+      embTime = Date.now() - eStart
+      const dStart = Date.now()
+      const res = await denseLane(tenantId, emb, documentIds)
+      denseTime = Date.now() - dStart
+      return res
+    })(),
+    (async () => {
+      const lStart = Date.now()
+      const res = await lexicalLane(tenantId, query, documentIds)
+      lexicalTime = Date.now() - lStart
+      return res
+    })()
   ])
 
+  console.log(
+    `[TIMING] [${ist()}]   │  ├─ search lanes total: ${Date.now() - searchStart}ms ` +
+      `[embedding: ${embTime}ms, dense (Pinecone): ${denseTime}ms (${dense.length} matches), lexical (Postgres): ${lexicalTime}ms (${lexical.length} matches)]`
+  )
+
   if (dense.length === 0 && lexical.length === 0) {
+    console.log(`[TIMING] [${ist()}]   └─ [RETRIEVER] retrieve END (no candidates) — ${Date.now() - startedAt}ms`)
     return { chunks: [], stage: 'no-candidates', timings: {} }
   }
 
@@ -182,10 +213,12 @@ export const retrieve = async (tenantId, query, options = {}) => {
     retrievalConfig.rrfK
   ).slice(0, retrievalConfig.candidateTopK)
 
+  const hydrateStart = Date.now()
   const hydrated = await hydrate(
     tenantId,
     fused.map((entry) => entry.id)
   )
+  console.log(`[TIMING] [${ist()}]   │  ├─ hydrate chunks (Postgres/Pinecone): ${Date.now() - hydrateStart}ms (${hydrated.size} chunks)`)
 
   const candidates = fused
     .map((entry) => {
@@ -202,6 +235,7 @@ export const retrieve = async (tenantId, query, options = {}) => {
     .filter(Boolean)
 
   if (candidates.length === 0) {
+    console.log(`[TIMING] [${ist()}]   └─ [RETRIEVER] retrieve END (unhydrated) — ${Date.now() - startedAt}ms`)
     return { chunks: [], stage: 'unhydrated', timings: {} }
   }
 
@@ -213,6 +247,11 @@ export const retrieve = async (tenantId, query, options = {}) => {
   const ranked = await rerankWithCache(query, deduped)
 
   const chunks = selectFinalists(ranked, deduped, finalTopK)
+
+  console.log(
+    `[TIMING] [${ist()}]   └─ [RETRIEVER] retrieve END — total: ${Date.now() - startedAt}ms ` +
+      `[final: ${chunks.length} chunks, stage: ${ranked ? 'reranked' : 'fused'}]`
+  )
 
   return {
     chunks,

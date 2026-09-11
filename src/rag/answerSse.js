@@ -1,6 +1,8 @@
 import { createAnswerFilter } from './answerStream.js'
 import { NO_ANSWER_MESSAGE } from '../config.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 const defaultSourcesEvent = (result) => ({
   sources: result.sources,
   query: result.query,
@@ -27,8 +29,13 @@ export const streamAnswer = async ({
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
   }
 
+  const streamSessionStart = Date.now()
+  let firstTokenTime = null
+
   try {
+    const produceStart = Date.now()
     const result = await produce()
+    console.log(`[TIMING] [${ist()}] 🚀 [SSE STREAM] produce() finished in ${Date.now() - produceStart}ms (pre-stream total: ${Date.now() - streamSessionStart}ms) | label: ${logLabel}`)
 
     sendSSE('sources', buildSourcesEvent(result))
 
@@ -99,6 +106,11 @@ export const streamAnswer = async ({
             const emitted = filter.push(content)
 
             if (emitted) {
+              if (firstTokenTime === null) {
+                firstTokenTime = Date.now() - streamSessionStart
+                console.log(`[TIMING] [${ist()}] ⚡ [SSE STREAM] TTFT (Time To First Token to client): ${firstTokenTime}ms`)
+              }
+
               sendSSE('chunk', { content: emitted })
               collectedAnswer += emitted
             }
@@ -131,6 +143,11 @@ export const streamAnswer = async ({
     if (filter.droppedCitations > 0) {
       console.warn(`${logLabel}: dropped ${filter.droppedCitations} out-of-range citation(s)`)
     }
+
+    const totalDuration = Date.now() - streamSessionStart
+    console.log(
+      `[TIMING] [${ist()}] 🏁 [SSE STREAM] COMPLETED — total: ${totalDuration}ms | TTFT: ${firstTokenTime ?? 'N/A'}ms | characters: ${collectedAnswer.length} | chunksUsed: ${result.chunksUsed}`
+    )
 
     console.log(
       `${logLabel}: streamed ${result.chunksUsed} chunks, ` +

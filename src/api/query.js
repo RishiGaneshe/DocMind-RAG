@@ -8,6 +8,8 @@ import { promptGuardrails } from '../middleware/guardrails.js'
 import { retrievalConfig, llmConfig } from '../config.js'
 import { recordTurn } from '../services/conversationService.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 const router = Router({ mergeParams: true })
 
 router.use(authenticate, requireTenant, queryLimiter, promptGuardrails)
@@ -136,6 +138,7 @@ const validateRequest = async (req) => {
 
 router.post('/', async (req, res) => {
   const startedAt = Date.now()
+  console.log(`[TIMING] [${ist()}] 🌐 [API /query] Request received | stream: ${!!req.body?.stream} | query: "${req.body?.query?.slice(0, 80)}"`)
 
   try {
     const validation = await validateRequest(req)
@@ -156,6 +159,7 @@ router.post('/', async (req, res) => {
         produce: () => queryRAGStream(tenantId, query, options),
         logLabel: `[QUERY API] ${tenantId}`,
         onComplete: ({ answer, refused, result }) => {
+          console.log(`[TIMING] [${ist()}] 🌐 [API /query] Stream finished | total request latency: ${Date.now() - startedAt}ms`)
           recordTurn({
             tenantId,
             userId: req.user?.userId,
@@ -175,6 +179,7 @@ router.post('/', async (req, res) => {
 
     const result = await queryRAG(tenantId, query, options)
     const responseTimeMs = Date.now() - startedAt
+    console.log(`[TIMING] [${ist()}] 🌐 [API /query] Non-stream finished | total request latency: ${responseTimeMs}ms`)
 
     console.log(
       `[QUERY API] ${tenantId}: ${result.chunksUsed ?? 0} chunks, ` +

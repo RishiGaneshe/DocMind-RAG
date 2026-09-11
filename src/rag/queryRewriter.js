@@ -6,6 +6,8 @@ import {
 } from '../services/cacheService.js'
 import { cacheConfig, llmConfig } from '../config.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 export const needsRewrite = (query, history) => {
   if (typeof query !== 'string') return false
   return query.trim().length > 0
@@ -106,14 +108,20 @@ export const sanitizeRewrite = (raw, original) => {
 export const rewriteQuery = async (query, history) => {
   if (!needsRewrite(query, history)) return { query, rewritten: false }
 
+  const rewriteStart = Date.now()
+  console.log(`[TIMING] [${ist()}] ⏱ rewriteQuery START — query: "${query.trim().slice(0, 80)}"`)
+
   const trimmedQuery = query.trim()
   const transcript = buildTranscript(history)
   const key = rewriteCacheKey(LLM_MODEL, transcript, trimmedQuery)
 
   if (cacheConfig.rewriteEnabled) {
+    const cacheStart = Date.now()
     const cached = await cacheGetJson(key)
+    console.log(`[TIMING] [${ist()}]   └─ rewrite cache lookup: ${Date.now() - cacheStart}ms (${cached ? 'HIT' : 'MISS'})`)
 
     if (typeof cached === 'string' && cached.trim()) {
+      console.log(`[TIMING] [${ist()}] ⏱ rewriteQuery END (cached) — ${Date.now() - rewriteStart}ms`)
       return { query: cached, rewritten: cached !== trimmedQuery }
     }
   }
@@ -123,6 +131,9 @@ export const rewriteQuery = async (query, history) => {
     : `USER QUERY\n${trimmedQuery}`
 
   try {
+    const llmStart = Date.now()
+    console.log(`[TIMING] [${ist()}]   └─ rewrite LLM call START`)
+
     const raw = await completeText(
       [
         { role: 'system', content: OPTIMIZE_PROMPT },
@@ -134,7 +145,10 @@ export const rewriteQuery = async (query, history) => {
       { maxTokens: 160, temperature: 0 }
     )
 
+    console.log(`[TIMING] [${ist()}]   └─ rewrite LLM call END — ${Date.now() - llmStart}ms`)
+
     if (!raw || typeof raw !== 'string' || !raw.trim()) {
+      console.log(`[TIMING] [${ist()}] ⏱ rewriteQuery END (empty LLM response) — ${Date.now() - rewriteStart}ms`)
       return { query: trimmedQuery, rewritten: false }
     }
 
@@ -148,9 +162,11 @@ export const rewriteQuery = async (query, history) => {
       console.log(`[REWRITE] "${trimmedQuery}" -> "${rewritten}"`)
     }
 
+    console.log(`[TIMING] [${ist()}] ⏱ rewriteQuery END — ${Date.now() - rewriteStart}ms`)
     return { query: rewritten, rewritten: rewritten !== trimmedQuery }
   } catch (error) {
     console.warn(`[REWRITE] failed, using the original query: ${error.message}`)
+    console.log(`[TIMING] [${ist()}] ⏱ rewriteQuery END (error) — ${Date.now() - rewriteStart}ms`)
 
     return { query: trimmedQuery, rewritten: false }
   }

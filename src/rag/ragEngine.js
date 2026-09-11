@@ -16,6 +16,8 @@ import {
 import { Document } from '../models/Document.js'
 import { retrievalConfig, cacheConfig, NO_ANSWER_MESSAGE } from '../config.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 const loadFilenames = async (tenantId, documentIds) => {
   if (documentIds.length === 0) return new Map()
 
@@ -64,6 +66,9 @@ const prepareContext = async (tenantId, chunks) => {
 }
 
 export const queryRAG = async (tenantId, userQuery, options = {}) => {
+  const pipelineStart = Date.now()
+  console.log(`[TIMING] [${ist()}] ========== queryRAG START ========== query: "${userQuery?.slice(0, 80)}"`)
+
   const topK = options.topK ?? retrievalConfig.finalTopK
   const history = options.history
 
@@ -79,19 +84,29 @@ export const queryRAG = async (tenantId, userQuery, options = {}) => {
     : null
 
   if (cacheKey) {
+    const answerCacheStart = Date.now()
     const cached = await cacheGetJson(cacheKey)
+    console.log(`[TIMING] [${ist()}]   └─ answer cache lookup: ${Date.now() - answerCacheStart}ms (${cached ? 'HIT' : 'MISS'})`)
 
-    if (cached) return { ...cached, cached: true }
+    if (cached) {
+      console.log(`[TIMING] [${ist()}] ========== queryRAG END (cached) ========== ${Date.now() - pipelineStart}ms`)
+      return { ...cached, cached: true }
+    }
   }
 
+  const rewriteStart = Date.now()
   const { query: searchQuery, rewritten } = await rewriteQuery(userQuery, history)
+  console.log(`[TIMING] [${ist()}]   └─ rewriteQuery total: ${Date.now() - rewriteStart}ms | rewritten: ${rewritten} | searchQuery: "${searchQuery?.slice(0, 80)}"`)
 
+  const retrieveStart = Date.now()
   const { chunks, stage, stats } = await retrieve(tenantId, searchQuery, {
     finalTopK: topK,
     documentIds: options.documentIds
   })
+  console.log(`[TIMING] [${ist()}]   └─ retrieve total: ${Date.now() - retrieveStart}ms | chunks: ${chunks.length} | stage: ${stage}`)
 
   if (chunks.length === 0) {
+    console.log(`[TIMING] [${ist()}] ========== queryRAG END (no chunks) ========== ${Date.now() - pipelineStart}ms`)
     return {
       answer: NO_ANSWER_MESSAGE,
       sources: [],
@@ -103,7 +118,7 @@ export const queryRAG = async (tenantId, userQuery, options = {}) => {
     }
   }
 
-  return await generate(tenantId, userQuery, chunks, {
+  const result = await generate(tenantId, userQuery, chunks, {
     stage,
     stats,
     history,
@@ -111,6 +126,9 @@ export const queryRAG = async (tenantId, userQuery, options = {}) => {
     searchQuery,
     rewritten
   })
+
+  console.log(`[TIMING] [${ist()}] ========== queryRAG END ========== ${Date.now() - pipelineStart}ms total`)
+  return result
 }
 
 const generate = async (
@@ -119,9 +137,14 @@ const generate = async (
   chunks,
   { stage, stats, history, cacheKey, searchQuery, rewritten }
 ) => {
+  const contextStart = Date.now()
   const { filenames, contextChunks } = await prepareContext(tenantId, chunks)
+  console.log(`[TIMING] [${ist()}]   └─ prepareContext: ${Date.now() - contextStart}ms`)
 
+  const llmStart = Date.now()
+  console.log(`[TIMING] [${ist()}]   └─ generateAnswer LLM call START`)
   const raw = await generateAnswer(userQuery, contextChunks, { history })
+  console.log(`[TIMING] [${ist()}]   └─ generateAnswer LLM call END — ${Date.now() - llmStart}ms`)
 
   if (isNoAnswer(raw)) {
     return {
@@ -166,17 +189,25 @@ const generate = async (
 }
 
 export const queryRAGStream = async (tenantId, userQuery, options = {}) => {
+  const pipelineStart = Date.now()
+  console.log(`[TIMING] [${ist()}] ========== queryRAGStream START ========== query: "${userQuery?.slice(0, 80)}"`)
+
   const topK = options.topK ?? retrievalConfig.finalTopK
   const history = options.history
 
+  const rewriteStart = Date.now()
   const { query: searchQuery, rewritten } = await rewriteQuery(userQuery, history)
+  console.log(`[TIMING] [${ist()}]   └─ rewriteQuery total: ${Date.now() - rewriteStart}ms | rewritten: ${rewritten} | searchQuery: "${searchQuery?.slice(0, 80)}"`)
 
+  const retrieveStart = Date.now()
   const { chunks, stage, stats } = await retrieve(tenantId, searchQuery, {
     finalTopK: topK,
     documentIds: options.documentIds
   })
+  console.log(`[TIMING] [${ist()}]   └─ retrieve total: ${Date.now() - retrieveStart}ms | chunks: ${chunks.length} | stage: ${stage}`)
 
   if (chunks.length === 0) {
+    console.log(`[TIMING] [${ist()}] ========== queryRAGStream END (no chunks) ========== ${Date.now() - pipelineStart}ms`)
     return {
       stream: null,
       cleanup: () => {},
@@ -189,13 +220,19 @@ export const queryRAGStream = async (tenantId, userQuery, options = {}) => {
     }
   }
 
+  const contextStart = Date.now()
   const { filenames, contextChunks } = await prepareContext(tenantId, chunks)
+  console.log(`[TIMING] [${ist()}]   └─ prepareContext: ${Date.now() - contextStart}ms`)
 
+  const streamStart = Date.now()
+  console.log(`[TIMING] [${ist()}]   └─ generateAnswerStream LLM call START`)
   const { stream, cleanup } = await generateAnswerStream(
     userQuery,
     contextChunks,
     { history }
   )
+  console.log(`[TIMING] [${ist()}]   └─ generateAnswerStream TTFB — ${Date.now() - streamStart}ms`)
+  console.log(`[TIMING] [${ist()}] ========== queryRAGStream END (stream opened) ========== ${Date.now() - pipelineStart}ms pre-stream`)
 
   return {
     stream,

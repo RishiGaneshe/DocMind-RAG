@@ -15,6 +15,8 @@ import { resolveWidgetConfig, redactSources } from '../services/widgetService.js
 import { recordTurn } from '../services/conversationService.js'
 import { publicApiConfig, retrievalConfig } from '../config.js'
 
+const ist = () => new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+
 const router = Router()
 
 router.use(
@@ -217,6 +219,7 @@ router.post(
   async (req, res) => {
     const { keyPrefix, id: apiKeyId } = req.apiKey
     const startedAt = Date.now()
+    console.log(`[TIMING] [${ist()}] 🌐 [API /chat] Request received from ${keyPrefix} | stream: ${!!req.body?.stream} | query: "${req.body?.query?.slice(0, 80)}"`)
 
     try {
       const parsed = validateChat(req)
@@ -249,6 +252,7 @@ router.post(
             chunksUsed: result.chunksUsed || 0
           }),
           onComplete: ({ answer, refused, result }) => {
+            console.log(`[TIMING] [${ist()}] 🌐 [API /chat] Stream finished | total request latency: ${Date.now() - startedAt}ms`)
             recordTurn({
               tenantId: req.tenantId,
               apiKeyId,
@@ -269,6 +273,7 @@ router.post(
 
       const result = await queryRAG(req.tenantId, parsed.query, parsed.options)
       const responseTimeMs = Date.now() - startedAt
+      console.log(`[TIMING] [${ist()}] 🌐 [API /chat] Non-stream finished | total request latency: ${responseTimeMs}ms`)
 
       console.log(
         `${label}: ${result.chunksUsed ?? 0} chunks, ` +
