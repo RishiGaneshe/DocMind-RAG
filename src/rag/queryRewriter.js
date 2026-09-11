@@ -15,32 +15,19 @@ const BACK_REFERENCE =
 const SHORT_QUERY_WORDS = 5
 
 export const needsRewrite = (query, history) => {
-  if (!Array.isArray(history) || history.length === 0) return false
-
-  const trimmed = query.trim()
-
-  if (!trimmed) return false
-
-  return (
-    FOLLOW_UP_OPENER.test(trimmed) ||
-    BACK_REFERENCE.test(trimmed) ||
-    trimmed.split(/\s+/).length < SHORT_QUERY_WORDS
-  )
+  const trimmed = query?.trim()
+  return !!trimmed
 }
 
-const REWRITE_PROMPT = `You rewrite a follow-up question so it can be understood on its own.
+const OPTIMIZE_PROMPT = `You are a search query optimizer for an HRMS knowledge base.
+The knowledge base documents are written strictly in English.
 
-RULES
-1. Resolve pronouns and references using the conversation.
-2. Keep the user's wording, and reproduce names, figures and identifiers exactly.
-3. Add nothing that was not asked, and never answer the question.
-4. If the question already stands alone, repeat it unchanged.
-5. Reply with the rewritten question and nothing else.
-
-EXAMPLE
-Conversation: user asked about the audit log retention period; the answer was 90 days.
-Follow-up: what about debug logs?
-Rewrite: What is the retention period for debug logs?`
+RULES:
+1. If the user query is in another language (Hindi, Spanish, etc.) or Hinglish (e.g., "leave apply kaise kare"), translate it into standard English keywords.
+2. Resolve pronouns and references using the provided conversation history (if any).
+3. If the query is already in clear English, keep it as is or expand acronyms/slang.
+4. Add nothing that was not asked, and never answer the question.
+5. Reply with the search-optimized English query and nothing else.`
 
 const buildTranscript = (history) =>
   history
@@ -59,7 +46,7 @@ export const sanitizeRewrite = (raw, original) => {
   if (!firstLine) return original
 
   const cleaned = firstLine
-    .replace(/^(?:rewrite|rewritten question|standalone question|question)\s*:\s*/i, '')
+    .replace(/^(?:rewrite|rewritten question|standalone question|question|search query)\s*:\s*/i, '')
     .replace(/^["'`*]+|["'`*]+$/g, '')
     .trim()
 
@@ -68,24 +55,6 @@ export const sanitizeRewrite = (raw, original) => {
   const tooLong = cleaned.length > original.length * 4 + 120
 
   if (tooLong) return original
-
-  const COMMON_PRONOUNS_AND_STOPWORDS = new Set([
-    'they', 'them', 'their', 'theirs', 'this', 'that', 'these', 'those',
-    'what', 'which', 'where', 'when', 'who', 'whom', 'whose', 'why', 'how',
-    'does', 'done', 'doing', 'have', 'been', 'would', 'could', 'should',
-    'about', 'there', 'here', 'some', 'more', 'also', 'with', 'from'
-  ])
-
-  const meaningfulWords = original
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((word) => word.length > 3 && !COMMON_PRONOUNS_AND_STOPWORDS.has(word))
-
-  if (meaningfulWords.length > 0) {
-    const kept = meaningfulWords.filter((word) => cleaned.toLowerCase().includes(word))
-
-    if (kept.length === 0) return original
-  }
 
   return cleaned
 }
@@ -107,10 +76,10 @@ export const rewriteQuery = async (query, history) => {
   try {
     const raw = await completeText(
       [
-        { role: 'system', content: REWRITE_PROMPT },
+        { role: 'system', content: OPTIMIZE_PROMPT },
         {
           role: 'user',
-          content: `CONVERSATION\n${transcript}\n\nFOLLOW-UP\n${query}`
+          content: `CONVERSATION\n${transcript}\n\nUSER QUERY\n${query}`
         }
       ],
       { maxTokens: 96, temperature: 0 }
