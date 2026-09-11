@@ -12,55 +12,33 @@ const history = [
 ]
 
 describe('needsRewrite', () => {
-  test('is false without history, whatever the query looks like', () => {
-    assert.equal(needsRewrite('what about it?', []), false)
-    assert.equal(needsRewrite('what about it?', undefined), false)
-    assert.equal(needsRewrite('what about it?', null), false)
-  })
-
-  test('is false for a long self-contained question', () => {
-    assert.equal(
-      needsRewrite('What is the retention period for debug logs?', history),
-      false
-    )
-  })
-
-  test('catches a follow-up opener', () => {
-    assert.equal(needsRewrite('And the deletion schedule?', history), true)
-    assert.equal(needsRewrite('what about debug logs', history), true)
-  })
-
-  test('catches a back-reference', () => {
-    assert.equal(
-      needsRewrite('Does that apply to the EU region as well?', history),
-      true
-    )
-  })
-
-  test('catches a very short query', () => {
+  test('is true for any non-empty string query, with or without history', () => {
+    assert.equal(needsRewrite('what about it?', []), true)
+    assert.equal(needsRewrite('what about it?', undefined), true)
+    assert.equal(needsRewrite('what about it?', null), true)
+    assert.equal(needsRewrite('mera payslip kyu nahi dikh raha', history), true)
     assert.equal(needsRewrite('debug logs?', history), true)
   })
 
-  test('does not fire on "there", which starts standalone questions', () => {
-    assert.equal(
-      needsRewrite('Is there a documented retention policy for backups?', history),
-      false
-    )
-  })
-
-  test('is false for an empty or whitespace query', () => {
+  test('is false for non-string, empty, or whitespace queries', () => {
     assert.equal(needsRewrite('   ', history), false)
     assert.equal(needsRewrite('', history), false)
+    assert.equal(needsRewrite(null, history), false)
+    assert.equal(needsRewrite(undefined, history), false)
+    assert.equal(needsRewrite(123, history), false)
+    assert.equal(needsRewrite({}, history), false)
   })
 })
 
 describe('sanitizeRewrite', () => {
-  const original = 'what about debug logs?'
+  const original = 'mera payslip kyu nahi dikh raha?'
 
   test('returns the original for a non-string', () => {
     assert.equal(sanitizeRewrite(null, original), original)
     assert.equal(sanitizeRewrite(undefined, original), original)
     assert.equal(sanitizeRewrite(42, original), original)
+    assert.equal(sanitizeRewrite('test', null), 'test')
+    assert.equal(sanitizeRewrite('test', undefined), 'test')
   })
 
   test('returns the original for empty output', () => {
@@ -68,23 +46,34 @@ describe('sanitizeRewrite', () => {
     assert.equal(sanitizeRewrite('\n  \n', original), original)
   })
 
-  test('keeps only the first non-empty line', () => {
-    const raw = '\nWhat is the retention period for debug logs?\nHope that helps!'
+  test('keeps the substantive query and strips preambles', () => {
+    const raw = 'Here is the search-optimized query:\nWhy is my monthly payslip not visible or downloadable?'
 
     assert.equal(
       sanitizeRewrite(raw, original),
-      'What is the retention period for debug logs?'
+      'Why is my monthly payslip not visible or downloadable?'
     )
   })
 
-  test('strips a label prefix', () => {
+  test('strips plain and bold label prefixes', () => {
     assert.equal(
       sanitizeRewrite('Rewrite: What is the debug logs retention?', original),
       'What is the debug logs retention?'
     )
     assert.equal(
-      sanitizeRewrite('Standalone question: debug logs retention period', original),
-      'debug logs retention period'
+      sanitizeRewrite('**Search Query:** Why is my payslip not visible?', original),
+      'Why is my payslip not visible?'
+    )
+    assert.equal(
+      sanitizeRewrite('Search-Optimized Query: why is payslip not downloading', original),
+      'why is payslip not downloading'
+    )
+  })
+
+  test('handles markdown code block wrappers', () => {
+    assert.equal(
+      sanitizeRewrite('```text\nWhy is my payslip not visible?\n```', original),
+      'Why is my payslip not visible?'
     )
   })
 
@@ -99,54 +88,37 @@ describe('sanitizeRewrite', () => {
     )
   })
 
-  test('rejects a rewrite that grew into prose', () => {
-    const essay = `Debug logs, like audit logs, are subject to a retention policy that
-      is typically shorter, and in most systems this is configured somewhere between
-      seven and thirty days depending on storage budgets and compliance posture`.replace(
-      /\s+/g,
-      ' '
-    )
-
+  test('rejects a rewrite that grew into an essay', () => {
+    const essay = 'a'.repeat(600)
     assert.equal(sanitizeRewrite(essay, original), original)
   })
 
-  test('rejects a rewrite sharing no significant word with the original', () => {
+  test('accepts clean multilingual translation without requiring shared words', () => {
     assert.equal(
-      sanitizeRewrite('The retention period is 90 days.', 'what about firewall rules'),
-      'what about firewall rules'
+      sanitizeRewrite('Why is monthly payslip not visible for employee?', 'mera salary slip kyu nahi dikh raha'),
+      'Why is monthly payslip not visible for employee?'
     )
-  })
-
-  test('accepts a rewrite that keeps a significant word', () => {
     assert.equal(
-      sanitizeRewrite('What is the retention period for debug logs?', original),
-      'What is the retention period for debug logs?'
-    )
-  })
-
-  test('accepts a valid pronoun resolution when original consists of common pronouns/stopwords', () => {
-    assert.equal(
-      sanitizeRewrite('Can administrators delete user accounts?', 'can they do that?'),
-      'Can administrators delete user accounts?'
+      sanitizeRewrite('How to apply for annual leave?', 'chutti kaise le'),
+      'How to apply for annual leave?'
     )
   })
 })
 
 describe('rewriteQuery', () => {
-  test('short-circuits without an LLM call when the gate is closed', async () => {
-    const query = 'What is the retention period for debug logs?'
-
-    assert.deepEqual(await rewriteQuery(query, history), {
-      query,
+  test('short-circuits without an LLM call when query is empty or invalid', async () => {
+    assert.deepEqual(await rewriteQuery('   ', history), {
+      query: '   ',
       rewritten: false
     })
-  })
 
-  test('short-circuits when there is no history at all', async () => {
-    const query = 'what about it'
+    assert.deepEqual(await rewriteQuery('', undefined), {
+      query: '',
+      rewritten: false
+    })
 
-    assert.deepEqual(await rewriteQuery(query, undefined), {
-      query,
+    assert.deepEqual(await rewriteQuery(null, undefined), {
+      query: null,
       rewritten: false
     })
   })
