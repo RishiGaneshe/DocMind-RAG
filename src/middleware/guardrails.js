@@ -51,8 +51,8 @@ export const inspectQuery = (query) => {
     return {
       code: 'PROMPT_INJECTION',
       reason:
-        'This question asks the assistant to set aside its instructions. ' +
-        'Ask about the contents of your documents instead.'
+        "This looks like an attempt to override Maya's instructions. " +
+        'Please rephrase it as an ordinary question.'
     }
   }
 
@@ -60,8 +60,8 @@ export const inspectQuery = (query) => {
     return {
       code: 'PROMPT_INJECTION',
       reason:
-        'This question imitates the internal source formatting. ' +
-        'Please ask it as ordinary prose.'
+        'This question is formatted in a way Maya cannot accept. ' +
+        'Please ask it as ordinary text.'
     }
   }
 
