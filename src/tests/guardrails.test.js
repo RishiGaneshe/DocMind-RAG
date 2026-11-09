@@ -162,6 +162,6 @@ describe('promptGuardrails middleware', () => {
     assert.equal(result.status, 400)
     assert.equal(result.payload.success, false)
     assert.equal(result.payload.code, 'PROMPT_INJECTION')
-    assert.match(result.payload.error, /documents/)
+    assert.match(result.payload.error, /instructions/)
   })
 })
